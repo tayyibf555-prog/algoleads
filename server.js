@@ -473,6 +473,103 @@ app.get('/api/bookings', requireAuth, async (req, res) => {
   }
 });
 
+// ──────────────────────────────────────────────────────────────
+// Announcements — the ONLY admin↔member shared surface. Admin
+// writes here; the member portal reads via its own
+// GET /api/announcements (no admin auth there, just the member's
+// session cookie). Pinned announcements appear at the top of the
+// member's list.
+// ──────────────────────────────────────────────────────────────
+app.get('/api/announcements', requireAuth, async (req, res) => {
+  try {
+    const rows = await all(
+      `SELECT * FROM announcements
+       ORDER BY pinned DESC, published_at DESC
+       LIMIT 500`
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('GET /api/announcements', err);
+    res.status(500).json({ error: 'internal error' });
+  }
+});
+
+app.post('/api/announcements', requireAuth, async (req, res) => {
+  try {
+    const title = String(req.body?.title || '').trim();
+    const body  = String(req.body?.body  || '').trim();
+    const pinned = req.body?.pinned ? 1 : 0;
+    if (!title || !body) {
+      return res.status(400).json({ error: 'title and body are required' });
+    }
+    if (title.length > 160) {
+      return res.status(400).json({ error: 'title must be 160 characters or fewer' });
+    }
+    if (body.length > 4000) {
+      return res.status(400).json({ error: 'body must be 4000 characters or fewer' });
+    }
+    const now = Date.now();
+    const result = await run(
+      `INSERT INTO announcements (title, body, pinned, published_at, created_at)
+       VALUES (?, ?, ?, ?, ?)`,
+      [title, body, pinned, now, now]
+    );
+    const row = await get('SELECT * FROM announcements WHERE id = ?', [result.lastInsertRowid]);
+    res.json(row);
+  } catch (err) {
+    console.error('POST /api/announcements', err);
+    res.status(500).json({ error: 'internal error' });
+  }
+});
+
+app.patch('/api/announcements/:id', requireAuth, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ error: 'invalid id' });
+    const existing = await get('SELECT * FROM announcements WHERE id = ?', [id]);
+    if (!existing) return res.status(404).json({ error: 'not found' });
+
+    const fields = [];
+    const args = [];
+    if (typeof req.body?.title === 'string') {
+      const t = req.body.title.trim();
+      if (!t) return res.status(400).json({ error: 'title cannot be empty' });
+      if (t.length > 160) return res.status(400).json({ error: 'title too long' });
+      fields.push('title = ?'); args.push(t);
+    }
+    if (typeof req.body?.body === 'string') {
+      const b = req.body.body.trim();
+      if (!b) return res.status(400).json({ error: 'body cannot be empty' });
+      if (b.length > 4000) return res.status(400).json({ error: 'body too long' });
+      fields.push('body = ?'); args.push(b);
+    }
+    if (typeof req.body?.pinned !== 'undefined') {
+      fields.push('pinned = ?'); args.push(req.body.pinned ? 1 : 0);
+    }
+    if (!fields.length) return res.json(existing);
+    args.push(id);
+    await run(`UPDATE announcements SET ${fields.join(', ')} WHERE id = ?`, args);
+    const row = await get('SELECT * FROM announcements WHERE id = ?', [id]);
+    res.json(row);
+  } catch (err) {
+    console.error('PATCH /api/announcements/:id', err);
+    res.status(500).json({ error: 'internal error' });
+  }
+});
+
+app.delete('/api/announcements/:id', requireAuth, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ error: 'invalid id' });
+    const result = await run('DELETE FROM announcements WHERE id = ?', [id]);
+    if (!result.changes) return res.status(404).json({ error: 'not found' });
+    res.json({ ok: true, id });
+  } catch (err) {
+    console.error('DELETE /api/announcements/:id', err);
+    res.status(500).json({ error: 'internal error' });
+  }
+});
+
 app.get('/api/stats', requireAuth, async (req, res) => {
   try {
     const dayMs = Date.now() - 24 * 60 * 60 * 1000;

@@ -67,6 +67,7 @@
         <button class="tab" data-tab="leads">Leads</button>
         <button class="tab" data-tab="payments">Payments</button>
         <button class="tab" data-tab="bookings">Bookings</button>
+        <button class="tab" data-tab="announcements">Announcements</button>
       </nav>
       <div class="topbar-actions">
         <a class="btn btn-ghost" href="/api/export.csv" id="exportLink" download>Export CSV</a>
@@ -213,6 +214,44 @@
             <tr><td colspan="5" class="muted center">Loading…</td></tr>
           </tbody>
         </table>
+      </div>
+    </section>
+
+    <!-- =============== Announcements =============== -->
+    <section class="panel" id="panel-announcements">
+      <div class="section-head">
+        <span class="label">Members</span>
+        <h1>Announcements</h1>
+        <p class="section-sub">Posts here appear instantly on every member's dashboard. Pinned posts sit at the top of their list.</p>
+      </div>
+
+      <form class="composer" id="announcementForm" autocomplete="off">
+        <div class="composer-row">
+          <label class="composer-label" for="annTitle">Title</label>
+          <input class="input" id="annTitle" type="text" maxlength="160" placeholder="e.g. System update — Gold risk parameters refreshed" required>
+          <div class="composer-hint" id="annTitleCount">0 / 160</div>
+        </div>
+        <div class="composer-row">
+          <label class="composer-label" for="annBody">Body</label>
+          <textarea class="input" id="annBody" rows="5" maxlength="4000" placeholder="Plain text. Members read this exactly as written." required></textarea>
+          <div class="composer-hint" id="annBodyCount">0 / 4000</div>
+        </div>
+        <div class="composer-actions">
+          <label class="composer-pin">
+            <input type="checkbox" id="annPinned">
+            <span>Pin to top</span>
+          </label>
+          <div class="composer-error" id="annError" role="alert"></div>
+          <button type="submit" class="btn btn-primary" id="annSubmit">Publish to all members →</button>
+        </div>
+      </form>
+
+      <div class="ann-list-head">
+        <span class="label">Published</span>
+        <span class="muted" id="annCount"></span>
+      </div>
+      <div class="ann-list" id="announcementsList">
+        <div class="muted center" style="padding:2rem 0">Loading…</div>
       </div>
     </section>
   </main>

@@ -64,7 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Boot the admin
         if (typeof setTab === 'function') {
           const initial = (location.hash || '#overview').replace('#', '');
-          const valid = ['overview', 'leads', 'payments', 'bookings'];
+          const valid = ['overview', 'leads', 'payments', 'bookings', 'announcements'];
           setTab(valid.indexOf(initial) >= 0 ? initial : 'overview');
         }
       } else {
@@ -262,10 +262,11 @@ tabs.forEach(t => t.addEventListener('click', () => setTab(t.dataset.tab)));
 // PANEL LOADERS
 // ──────────────────────────────────────────────────────────────
 async function loadPanel(name) {
-  if (name === 'overview')  await loadOverview();
-  if (name === 'leads')     await loadLeads();
-  if (name === 'payments')  await loadPayments();
-  if (name === 'bookings')  await loadBookings();
+  if (name === 'overview')      await loadOverview();
+  if (name === 'leads')         await loadLeads();
+  if (name === 'payments')      await loadPayments();
+  if (name === 'bookings')      await loadBookings();
+  if (name === 'announcements') await loadAnnouncements();
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -450,6 +451,129 @@ async function loadBookings() {
     )).join(''));
   } catch (err) {
     setHTML(body, '<tr><td colspan="5" class="muted center" data-label="">Error: ' + fmt.esc(err.message) + '</td></tr>');
+  }
+}
+
+// ──────────────────────────────────────────────────────────────
+// ANNOUNCEMENTS — admin composes; the SAME table is read by the
+// member portal (read-only there). This is the only data surface
+// shared between admin and members. Nothing else cross-contaminates.
+// ──────────────────────────────────────────────────────────────
+let _annWiringDone = false;
+
+async function loadAnnouncements() {
+  if (!$('#panel-announcements').classList.contains('active')) return;
+  if (!_annWiringDone) wireAnnouncements();
+  await refreshAnnouncementsList();
+}
+
+function wireAnnouncements() {
+  const form    = $('#announcementForm');
+  const title   = $('#annTitle');
+  const body    = $('#annBody');
+  const pinned  = $('#annPinned');
+  const submit  = $('#annSubmit');
+  const error   = $('#annError');
+  const tCount  = $('#annTitleCount');
+  const bCount  = $('#annBodyCount');
+  if (!form) return;
+
+  const updateCounts = () => {
+    tCount.textContent = title.value.length + ' / 160';
+    bCount.textContent = body.value.length + ' / 4000';
+  };
+  title.addEventListener('input', updateCounts);
+  body.addEventListener('input', updateCounts);
+  updateCounts();
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    error.textContent = '';
+    const t = title.value.trim();
+    const b = body.value.trim();
+    if (!t || !b) { error.textContent = 'Title and body are required.'; return; }
+    submit.disabled = true; submit.textContent = 'Publishing…';
+    try {
+      await api('/api/announcements', {
+        method: 'POST',
+        body: JSON.stringify({ title: t, body: b, pinned: pinned.checked }),
+      });
+      title.value = ''; body.value = ''; pinned.checked = false;
+      updateCounts();
+      await refreshAnnouncementsList();
+    } catch (err) {
+      error.textContent = (err.message || 'Failed to publish.').replace(/^4\d\d /, '');
+    } finally {
+      submit.disabled = false; submit.textContent = 'Publish to all members →';
+    }
+  });
+
+  _annWiringDone = true;
+}
+
+async function refreshAnnouncementsList() {
+  const list = $('#announcementsList');
+  const count = $('#annCount');
+  setHTML(list, '<div class="muted center" style="padding:2rem 0">Loading…</div>');
+  try {
+    const rows = await api('/api/announcements');
+    count.textContent = rows.length
+      ? rows.length + ' published · visible to every member'
+      : 'No announcements yet';
+    if (!rows.length) {
+      setHTML(list, '<div class="muted center" style="padding:2.5rem 0">Nothing published yet. The first post you publish above will appear on every member dashboard immediately.</div>');
+      return;
+    }
+    setHTML(list, rows.map((r) => (
+      '<article class="ann-item' + (r.pinned ? ' pinned' : '') + '" data-ann-id="' + r.id + '">' +
+        '<header class="ann-item-head">' +
+          '<h3 class="ann-item-title">' + fmt.esc(r.title) + '</h3>' +
+          '<div class="ann-item-meta">' +
+            (r.pinned ? '<span class="ann-pin-tag">Pinned</span>' : '') +
+            '<span>' + fmt.esc(fmt.ago(r.published_at)) + '</span>' +
+          '</div>' +
+        '</header>' +
+        '<div class="ann-item-body">' + fmt.esc(r.body) + '</div>' +
+        '<div class="ann-item-actions">' +
+          '<button class="btn btn-ghost" data-ann-toggle-pin="' + r.id + '" data-pinned="' + (r.pinned ? '1' : '0') + '">' + (r.pinned ? 'Unpin' : 'Pin to top') + '</button>' +
+          '<button class="btn btn-ghost danger" data-ann-delete="' + r.id + '">Delete</button>' +
+        '</div>' +
+      '</article>'
+    )).join(''));
+
+    // Pin/unpin
+    $$('[data-ann-toggle-pin]').forEach(btn => btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-ann-toggle-pin');
+      const wasPinned = btn.getAttribute('data-pinned') === '1';
+      btn.disabled = true;
+      try {
+        await api('/api/announcements/' + encodeURIComponent(id), {
+          method: 'PATCH',
+          body: JSON.stringify({ pinned: !wasPinned }),
+        });
+        await refreshAnnouncementsList();
+      } catch (err) {
+        btn.disabled = false;
+        alert('Failed: ' + err.message);
+      }
+    }));
+
+    // Delete
+    $$('[data-ann-delete]').forEach(btn => btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-ann-delete');
+      if (!confirm('Delete this announcement? It will disappear from every member dashboard.')) return;
+      btn.disabled = true;
+      try {
+        await api('/api/announcements/' + encodeURIComponent(id), { method: 'DELETE' });
+        await refreshAnnouncementsList();
+      } catch (err) {
+        btn.disabled = false;
+        alert('Failed: ' + err.message);
+      }
+    }));
+  } catch (err) {
+    setHTML(list, '<div class="muted center" style="padding:2rem 0">Error: ' + fmt.esc(err.message) + '</div>');
+    count.textContent = '';
   }
 }
 
