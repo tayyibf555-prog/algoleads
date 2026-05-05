@@ -1,3 +1,128 @@
+/* ──────────────────────────────────────────────────────────────
+   AUTH GATE — before anything else runs, check sessionStorage
+   for credentials and verify them. If invalid or missing, show
+   the login overlay and stop. Once verified, `_authHeader` is
+   set and api() uses it for every request.
+   ────────────────────────────────────────────────────────────── */
+const AUTH_STORAGE_KEY = 'algoAdmin.auth';
+let _authHeader = null;
+
+function _setAuth(user, pass) {
+  _authHeader = 'Basic ' + btoa(user + ':' + pass);
+  try { sessionStorage.setItem(AUTH_STORAGE_KEY, _authHeader); } catch (e) {}
+}
+function _loadAuth() {
+  try { _authHeader = sessionStorage.getItem(AUTH_STORAGE_KEY) || null; } catch (e) {}
+  return _authHeader;
+}
+function _clearAuth() {
+  _authHeader = null;
+  try { sessionStorage.removeItem(AUTH_STORAGE_KEY); } catch (e) {}
+}
+
+async function _probeAuth(headerValue) {
+  const res = await fetch('/api/stats', {
+    headers: { 'Accept': 'application/json', 'Authorization': headerValue }
+  });
+  return res.ok;
+}
+
+function _showLogin(errorText) {
+  const screen = document.getElementById('loginScreen');
+  const err = document.getElementById('loginError');
+  if (screen) screen.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('locked');
+  if (err) err.textContent = errorText || '';
+  const u = document.getElementById('loginUser');
+  if (u) setTimeout(() => u.focus(), 30);
+}
+function _hideLogin() {
+  const screen = document.getElementById('loginScreen');
+  if (screen) screen.setAttribute('aria-hidden', 'true');
+  document.body.classList.remove('locked');
+}
+
+// Wire the login form
+document.addEventListener('DOMContentLoaded', () => {
+  const form = document.getElementById('loginForm');
+  const submit = document.getElementById('loginSubmit');
+  const err = document.getElementById('loginError');
+
+  if (form) form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    if (err) err.textContent = '';
+    submit.disabled = true;
+    submit.textContent = 'Signing in…';
+    const u = document.getElementById('loginUser').value.trim();
+    const p = document.getElementById('loginPass').value;
+    const candidate = 'Basic ' + btoa(u + ':' + p);
+    try {
+      const ok = await _probeAuth(candidate);
+      if (ok) {
+        _setAuth(u, p);
+        _hideLogin();
+        // Boot the admin
+        if (typeof setTab === 'function') {
+          const initial = (location.hash || '#overview').replace('#', '');
+          const valid = ['overview', 'leads', 'payments', 'bookings'];
+          setTab(valid.indexOf(initial) >= 0 ? initial : 'overview');
+        }
+      } else {
+        if (err) err.textContent = 'Invalid username or password.';
+      }
+    } catch (e) {
+      if (err) err.textContent = 'Network error — try again.';
+    } finally {
+      submit.disabled = false;
+      submit.textContent = 'Sign in →';
+    }
+  });
+
+  // Sign-out button in topbar
+  const signout = document.getElementById('signoutBtn');
+  if (signout) signout.addEventListener('click', () => {
+    _clearAuth();
+    location.reload();
+  });
+
+  // Make Export CSV pass auth via blob download (Authorization
+  // can't be set on a plain <a download> link — fetch + blob it)
+  const exportLink = document.getElementById('exportLink');
+  if (exportLink) exportLink.addEventListener('click', async (ev) => {
+    ev.preventDefault();
+    try {
+      const res = await fetch('/api/export.csv', {
+        headers: { 'Authorization': _authHeader || '' }
+      });
+      if (!res.ok) throw new Error(res.status + '');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'leads-' + new Date().toISOString().slice(0, 10) + '.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('Export failed', e);
+    }
+  });
+});
+
+// Probe stored creds on page load. If valid, hide the login screen
+// and let the existing bootstrap run. If not, show the login.
+(async () => {
+  const stored = _loadAuth();
+  if (stored && (await _probeAuth(stored).catch(() => false))) {
+    _hideLogin();
+    // Existing bootstrap runs at the bottom of admin.js
+  } else {
+    _clearAuth();
+    _showLogin('');
+  }
+})();
+
 /* Algo Admin · single-file vanilla JS
    ───────────────────────────────────
    - Tab routing (Overview / Leads / Payments / Bookings)
@@ -67,9 +192,16 @@ async function api(path, opts) {
   const headers = Object.assign(
     { 'Accept': 'application/json' },
     opts.body ? { 'Content-Type': 'application/json' } : {},
+    _authHeader ? { 'Authorization': _authHeader } : {},
     opts.headers || {}
   );
   const res = await fetch(path, Object.assign({}, opts, { headers }));
+  if (res.status === 401) {
+    // Session expired or credentials revoked — clear and re-prompt.
+    _clearAuth();
+    _showLogin('Session expired — please sign in again.');
+    throw new Error('401 unauthorised');
+  }
   if (!res.ok) {
     let msg = res.statusText;
     try { const j = await res.json(); if (j.error) msg = j.error; } catch (e) {}
@@ -503,7 +635,7 @@ setInterval(() => {
 // BOOTSTRAP — runs last so every const above is initialized
 // before setTab triggers the first loadPanel() call.
 // ──────────────────────────────────────────────────────────────
-{
+if (_authHeader) {
   const initial = (location.hash || '#overview').replace('#', '');
   const valid = ['overview', 'leads', 'payments', 'bookings'];
   setTab(valid.indexOf(initial) >= 0 ? initial : 'overview');

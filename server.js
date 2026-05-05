@@ -319,11 +319,14 @@ app.post('/api/webhooks/calendly', async (req, res) => {
 // ──────────────────────────────────────────────────────────────
 // Admin auth — HTTP Basic
 // ──────────────────────────────────────────────────────────────
+// Auth middleware. Returns 401 WITHOUT the WWW-Authenticate header
+// so the browser does NOT show its native Basic-Auth prompt — the
+// frontend renders our branded sign-in screen instead and supplies
+// the Authorization header manually after the user logs in.
 function requireAuth(req, res, next) {
   const auth = req.get('authorization');
   if (!auth || !auth.startsWith('Basic ')) {
-    res.set('WWW-Authenticate', 'Basic realm="Algo Admin"');
-    return res.status(401).send('Authentication required');
+    return res.status(401).json({ error: 'authentication required' });
   }
   const decoded = Buffer.from(auth.slice(6), 'base64').toString('utf8');
   const idx = decoded.indexOf(':');
@@ -338,8 +341,7 @@ function requireAuth(req, res, next) {
     Buffer.from(ADMIN_PASS.padEnd(128, '\0').slice(0, 128))
   );
   if (userOK && passOK) return next();
-  res.set('WWW-Authenticate', 'Basic realm="Algo Admin"');
-  return res.status(401).send('Invalid credentials');
+  return res.status(401).json({ error: 'invalid credentials' });
 }
 
 // ──────────────────────────────────────────────────────────────
