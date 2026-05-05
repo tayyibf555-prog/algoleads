@@ -1,7 +1,7 @@
 {
   "name": "algo-admin-portal",
-  "version": "1.0.0",
-  "description": "Admin portal for Algo by Excelsior — leads, payments, bookings.",
+  "version": "1.1.0",
+  "description": "Admin portal for Algo by Excelsior — leads, payments, bookings. Vercel + Turso.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -11,7 +11,7 @@
     "node": ">=18"
   },
   "dependencies": {
-    "better-sqlite3": "^11.5.0",
+    "@libsql/client": "^0.14.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.0"

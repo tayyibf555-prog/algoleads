@@ -1,181 +1,143 @@
-# Deploying the admin portal
+# Deploying to Vercel + Turso
 
-Single deploy target: **Fly.io**. Free, persistent SQLite, auto-TLS, London region. Whole flow takes ~15 minutes the first time.
+Single deploy target: **Vercel** (admin function + static UI). Database: **Turso** (hosted libSQL — free tier covers this comfortably). Whole flow takes ~10 minutes the first time.
 
-## One-time setup
+## What goes where
 
-### 1. Install flyctl
-
-**macOS:**
-```bash
-brew install flyctl
+```
+┌── Vercel ──────────────────────────────────────────┐
+│  /                       → public/index.html       │
+│  /admin.css, /admin.js   → public/* (CDN cached)   │
+│  /api/*                  → api/index.js (function) │
+└────────────────────────────────────────────────────┘
+                          │
+                          ▼
+                ┌── Turso ──────┐
+                │  libSQL DB    │  (hosted SQLite)
+                └───────────────┘
 ```
 
-Other OSes: https://fly.io/docs/hands-on/install-flyctl/
-
-### 2. Sign up for Fly
+## 1. Create the Turso database
 
 ```bash
-fly auth signup
+brew install tursodatabase/tap/turso     # one-time
+turso auth signup                         # browser opens, no card
+turso db create algoleads                 # creates a hosted DB in lhr region
+turso db show algoleads --url             # → libsql://algoleads-<you>.turso.io
+turso db tokens create algoleads          # → eyJhbGc... (long token)
 ```
 
-Browser opens. **No credit card is required for the free tier.** A Fly account gives you 3 small VMs and 3 GB of persistent volumes free forever.
+Copy both values aside — you'll paste them into Vercel in step 3.
 
-If you already have an account: `fly auth login`.
+## 2. Push to GitHub (already done)
 
-## Deploy
+Repo: https://github.com/tayyibf555-prog/algoleads
 
-From the `algo-admin-portal/` folder:
+Vercel auto-deploys whenever you push to `main`.
 
-### 3. Initialise the app (once)
+## 3. Connect to Vercel
+
+1. https://vercel.com/new
+2. Import the `algoleads` repo
+3. Framework preset: **Other** (Vercel will detect `vercel.json`)
+4. Before clicking **Deploy**, add **Environment Variables**:
+
+| Name | Value |
+|---|---|
+| `TURSO_DATABASE_URL` | the `libsql://…` URL from step 1 |
+| `TURSO_AUTH_TOKEN` | the `eyJhbGc…` token from step 1 |
+| `ADMIN_USER` | `admin` (or whatever username) |
+| `ADMIN_PASS` | a strong random password |
+| `ALLOWED_ORIGINS` | `*` for now, tighten later (e.g. `https://algobyexcelsior.vercel.app`) |
+
+5. Click **Deploy**. ~60 seconds later your URL is live, e.g. `https://algoleads.vercel.app`.
+
+## 4. Test
+
+- Visit `https://algoleads.vercel.app/`
+- Browser prompts for HTTP Basic Auth → use the credentials from step 3
+- Overview panel loads (zeros across the board — fresh DB)
 
 ```bash
-fly launch --no-deploy
+# also verify the public lead intake works:
+curl -X POST https://algoleads.vercel.app/api/leads \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Test","email":"test@example.com","risk_ack":true}'
+# → {"ok":true,"id":1}
 ```
 
-When prompted:
-- **Use existing fly.toml?** → Yes
-- **App name** → accept default (`algo-admin-portal`) or pick your own
-- **Region** → `lhr` (London)
-- **Postgres?** → No
-- **Redis?** → No
-- **Tigris?** → No
+Refresh the admin → 1 lead appears.
 
-(If the app name `algo-admin-portal` is taken, Fly will suggest one with a suffix. Note it down — you'll need it.)
+## 5. Wire the marketing site
 
-### 4. Create the persistent volume
-
-```bash
-fly volumes create algo_admin_data --region lhr --size 1
-```
-
-1 GB SQLite holds tens of thousands of leads. Free tier covers up to 3 GB total.
-
-### 5. Set your admin password and CORS origin
-
-Replace `<long-random-password>` with something serious — this is the only thing protecting the portal:
-
-```bash
-fly secrets set \
-  ADMIN_USER=admin \
-  ADMIN_PASS='<long-random-password>' \
-  ALLOWED_ORIGINS='*'
-```
-
-You can tighten `ALLOWED_ORIGINS` later, e.g.:
-```bash
-fly secrets set ALLOWED_ORIGINS='https://tayyibf555-prog.github.io,https://www.algobyexcelsior.co.uk'
-```
-
-### 6. Deploy
-
-```bash
-fly deploy
-```
-
-Takes ~60 seconds the first time. The output shows your URL — typically `https://algo-admin-portal.fly.dev` (or whatever name you picked in step 3).
-
-### 7. Test
-
-Open the URL in a browser. Log in with `admin / <your password>`. The Overview tab loads — you're live.
-
-## Wire the marketing site
-
-Once the admin URL is live, update `LEADS_API_URL` in the marketing site's `index.html`:
+Update `LEADS_API_URL` in the marketing site's `index.html`:
 
 ```js
-const LEADS_API_URL = 'https://algo-admin-portal.fly.dev/api/leads';
+const LEADS_API_URL = 'https://algoleads.vercel.app/api/leads';
 ```
 
-Push to GitHub. If the marketing site is on GitHub Pages, it redeploys in ~30 seconds.
+Push to GitHub → if the marketing site auto-deploys (Vercel/GitHub Pages), it goes live. Done.
 
-Now form submissions on the marketing site land in the admin in real time.
-
-## Stripe webhook (whenever Stripe is wired up)
+## 6. Stripe webhook (when you have a Stripe Checkout link)
 
 1. Stripe Dashboard → Developers → Webhooks → **Add endpoint**
-2. Endpoint URL: `https://algo-admin-portal.fly.dev/api/webhooks/stripe`
-3. Events to send: `checkout.session.completed` (and optionally `checkout.session.async_payment_succeeded`)
+2. Endpoint URL: `https://algoleads.vercel.app/api/webhooks/stripe`
+3. Subscribe to `checkout.session.completed`
 4. Copy the signing secret (`whsec_...`)
-5. Set it on Fly:
-   ```bash
-   fly secrets set STRIPE_WEBHOOK_SECRET='whsec_...'
-   ```
+5. Vercel → Project → Settings → Environment Variables → add:
+   - `STRIPE_WEBHOOK_SECRET` = `whsec_...`
+6. Redeploy (push any commit, or use Vercel's "Redeploy" button)
 
-Test with the Stripe CLI:
-```bash
-stripe listen --forward-to https://algo-admin-portal.fly.dev/api/webhooks/stripe
-stripe trigger checkout.session.completed
-```
+## 7. Calendly webhook (optional)
 
-A test payment should appear in the admin's **Payments** panel within seconds.
+Same pattern. Endpoint: `https://algoleads.vercel.app/api/webhooks/calendly`. Set `CALENDLY_WEBHOOK_SECRET` if you used a signing key.
 
-## Calendly webhook (optional)
+## Custom domain
 
-Same pattern — point Calendly at `https://algo-admin-portal.fly.dev/api/webhooks/calendly`, set `CALENDLY_WEBHOOK_SECRET` if you used a signing key.
+Vercel project → Settings → Domains → add your domain (e.g. `admin.algobyexcelsior.co.uk`). Vercel walks you through the DNS records and provisions TLS automatically.
 
-## Subsequent deploys
+After adding, update `ALLOWED_ORIGINS` to use the production marketing-site domain.
 
-Just:
-```bash
-fly deploy
-```
+## Local dev
 
-Takes ~30 seconds. The persistent volume is preserved across deploys.
-
-## Custom domain (later)
-
-When you own `algobyexcelsior.co.uk`:
+Local dev uses a SQLite file by default (no Turso needed):
 
 ```bash
-fly certs add admin.algobyexcelsior.co.uk
+cp .env.example .env
+# (default TURSO_DATABASE_URL=file:db/algo-admin.db works as-is)
+npm install
+npm start
+# → http://localhost:4002 — log in with admin / changeme
 ```
 
-Fly prints the DNS records to add — typically a CNAME pointing `admin.algobyexcelsior.co.uk` → `algo-admin-portal.fly.dev`. Set that at your DNS provider, wait a few minutes, and Fly provisions Let's Encrypt TLS automatically.
+If you want to develop against the **same hosted Turso DB** as production, set `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` in `.env` to your production values.
 
-Then update `LEADS_API_URL` and `ALLOWED_ORIGINS`.
-
-## Backup
-
-The SQLite file is at `/app/db/algo-admin.db` inside the Fly machine. To pull a backup to your laptop:
+## Backing up the production DB
 
 ```bash
-fly ssh console -C "sqlite3 /app/db/algo-admin.db .dump" > "backup-$(date +%Y%m%d-%H%M%S).sql"
+turso db shell algoleads ".dump" > "backup-$(date +%Y%m%d).sql"
 ```
 
-Restoring from a backup requires SSH'ing in and replaying the SQL. Worth scripting if you want regular backups — but for one client at small scale, a weekly manual run is fine.
+Restore by replaying the SQL into a fresh DB.
 
-## Cost monitoring
+## Resetting
 
-Fly's free tier: 3 shared-cpu-1x machines, 256 MB RAM each, 3 GB persistent volumes. The admin uses one machine + one volume, well inside free.
-
-If you ever do exceed free, you'd see an alert from Fly, not a surprise bill.
-
-## Reset (wipe all data)
+To wipe production data:
 
 ```bash
-fly ssh console
-rm /app/db/algo-admin.db /app/db/algo-admin.db-wal /app/db/algo-admin.db-shm 2>/dev/null
-exit
-fly deploy
+turso db shell algoleads "DELETE FROM leads; DELETE FROM payments; DELETE FROM bookings; DELETE FROM events;"
 ```
 
-Database recreates empty on next boot.
+## If a deploy breaks
 
-## If something breaks
+Vercel keeps every deploy. Roll back:
+- Vercel project → Deployments → find the last working one → "Promote to Production"
 
-Check the live logs:
-```bash
-fly logs
-```
+Or check function logs:
+- Vercel project → Logs → filter to your function
 
-Restart the machine:
-```bash
-fly machine restart
-```
+## Cost
 
-Or kill and redeploy:
-```bash
-fly machine destroy --select
-fly deploy
-```
+- Vercel: free tier (Hobby plan) covers this comfortably — single user, low traffic.
+- Turso: free tier — 9 GB storage, 1B row reads/month, 25M row writes/month. Plenty.
+- Total monthly cost: **£0**.
