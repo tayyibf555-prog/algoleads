@@ -1,0 +1,18 @@
+# Node
+node_modules/
+*.log
+npm-debug.log*
+
+# Local env
+.env
+.env.local
+
+# SQLite database files (data is per-deployment)
+db/*.db
+db/*.db-journal
+db/*.db-wal
+db/*.db-shm
+
+# macOS
+.DS_Store
+._*
