@@ -16,3 +16,4 @@ db/*.db-shm
 # macOS
 .DS_Store
 ._*
+.vercel

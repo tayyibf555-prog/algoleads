@@ -550,6 +550,11 @@ app.get('/api/lead-data/:id', requireAuth, async (req, res) => {
 // Healthcheck — useful in production for uptime monitoring
 app.get('/api/health', (req, res) => res.json({ ok: true, ts: Date.now() }));
 
+// On Vercel the static admin UI lives in /public, but Vercel's
+// auto-static-serving doesn't resolve `/` → `/index.html` for an
+// Express-detected project. Redirect it explicitly.
+app.get('/', (req, res) => res.redirect(302, '/index.html'));
+
 // ──────────────────────────────────────────────────────────────
 // Local mode only — static UI + retention sweep + listen()
 // On Vercel, /public is served by Vercel's CDN automatically
