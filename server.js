@@ -137,6 +137,20 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
+// Lightweight request logger — every API request prints
+// timestamp, method, path, origin, status, ms.
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const ms = Date.now() - start;
+    const o = req.get('origin') || '-';
+    if (req.path.startsWith('/api/')) {
+      console.log(`[${new Date().toISOString().slice(11,19)}] ${req.method} ${req.path} ${res.statusCode} ${ms}ms origin=${o}`);
+    }
+  });
+  next();
+});
+
 // Stripe webhook needs the raw body BEFORE the JSON parser eats it.
 app.post(
   '/api/webhooks/stripe',

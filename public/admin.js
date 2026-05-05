@@ -126,10 +126,6 @@ function setTab(name) {
   loadPanel(name);
 }
 tabs.forEach(t => t.addEventListener('click', () => setTab(t.dataset.tab)));
-
-const initial = (location.hash || '#overview').replace('#', '');
-setTab(['overview', 'leads', 'payments', 'bookings'].indexOf(initial) >= 0 ? initial : 'overview');
-
 // ──────────────────────────────────────────────────────────────
 // PANEL LOADERS
 // ──────────────────────────────────────────────────────────────
@@ -502,3 +498,13 @@ setInterval(() => {
   if (drawer.getAttribute('aria-hidden') === 'false') return;
   loadPanel(active.dataset.tab);
 }, 30 * 1000);
+
+// ──────────────────────────────────────────────────────────────
+// BOOTSTRAP — runs last so every const above is initialized
+// before setTab triggers the first loadPanel() call.
+// ──────────────────────────────────────────────────────────────
+{
+  const initial = (location.hash || '#overview').replace('#', '');
+  const valid = ['overview', 'leads', 'payments', 'bookings'];
+  setTab(valid.indexOf(initial) >= 0 ? initial : 'overview');
+}
