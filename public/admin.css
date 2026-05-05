@@ -150,11 +150,29 @@ table { border-collapse: collapse; width: 100%; }
 .topbar-actions { display: flex; align-items: center; gap: 0.5rem; }
 
 @media (max-width: 900px) {
-  .topbar-inner { grid-template-columns: 1fr; gap: 0.75rem; }
-  .tabs { overflow-x: auto; padding-bottom: 0.25rem; justify-content: flex-start; }
-  .tab { white-space: nowrap; }
-  .topbar-actions { justify-content: flex-start; }
-  .brand-tag { display: none; }
+  .topbar-inner {
+    grid-template-columns: 1fr auto;
+    gap: 0.75rem 1rem;
+    grid-template-areas: "brand actions" "tabs tabs";
+  }
+  .brand          { grid-area: brand;   min-width: 0; }
+  .topbar-actions { grid-area: actions; }
+  .tabs           { grid-area: tabs;    overflow-x: auto; padding-bottom: 0.25rem; justify-content: flex-start; -webkit-overflow-scrolling: touch; }
+  .tab            { white-space: nowrap; flex-shrink: 0; }
+  .topbar-actions { justify-content: flex-end; }
+  .brand-tag      { display: none; }
+  .brand .by      { display: none; }
+}
+@media (max-width: 480px) {
+  .topbar-inner { padding: 0.7rem 0.85rem; }
+  .topbar-actions .btn { padding: 0.5rem 0.85rem; font-size: 0.75rem; }
+  .brand          { font-size: 0.9375rem; gap: 0.5rem; }
+  .brand-mark     { width: 20px; height: 20px; }
+  .leads-actions  { min-width: 0; max-width: none; width: 100%; }
+  .leads-head     { flex-direction: column; align-items: stretch; gap: 0.5rem; }
+  .section-head h1 { font-size: clamp(1.5rem, 6vw, 2rem); }
+  .stat-card      { padding: 1.15rem 1.2rem; }
+  .stat-card .stat-value { font-size: clamp(1.5rem, 6vw, 2rem); }
 }
 
 /* =============================================================
@@ -410,8 +428,55 @@ button:focus-visible, a:focus-visible, .input:focus-visible {
 .data td.center { text-align: center; padding: 1.5rem; }
 
 @media (max-width: 720px) {
-  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  .data { min-width: 720px; }
+  /* Card-list view on mobile — each row becomes a stacked card so
+     everything is readable without horizontal scroll. JS attaches
+     data-label to every <td> so CSS can show the column name. */
+  .table-wrap {
+    border: 0;
+    background: transparent;
+    border-radius: 0;
+    overflow: visible;
+  }
+  .data, .data tbody, .data tbody tr, .data tbody td { display: block; }
+  .data thead { display: none; }
+  .data { min-width: 0; }
+  .data tbody tr {
+    background: rgba(255, 255, 255, 0.025);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius);
+    padding: 0.5rem 1rem;
+    margin-bottom: 0.7rem;
+  }
+  .data tbody tr:hover { background: rgba(255, 255, 255, 0.04); }
+  .data tbody tr td {
+    border-bottom: 1px solid var(--hairline);
+    padding: 0.65rem 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    text-align: right;
+    font-size: 0.875rem;
+    min-height: 0;
+  }
+  .data tbody tr td:last-child { border-bottom: 0; }
+  .data tbody tr td.r { text-align: right; }
+  .data tbody tr td.center { text-align: center; }
+  .data tbody td::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+    text-align: left;
+    font-weight: 500;
+    margin-right: 1rem;
+  }
+  /* The center "loading…/no data" cell shouldn't show a label */
+  .data tbody td.center::before { content: ''; margin: 0; }
+  .data tbody td.center { display: block; padding: 1.5rem; text-align: center; }
 }
 
 /* =============================================================
@@ -550,6 +615,22 @@ button:focus-visible, a:focus-visible, .input:focus-visible {
   gap: 0.65rem 1rem;
   font-size: 0.875rem;
   align-items: start;
+}
+@media (max-width: 480px) {
+  .field-grid { grid-template-columns: 1fr; gap: 0.15rem 0; }
+  .field-grid .k { padding-top: 0.65rem; }
+  .field-grid .v { padding-bottom: 0.65rem; border-bottom: 1px solid var(--hairline); }
+  .field-grid > *:nth-last-child(2),
+  .field-grid > *:last-child { border-bottom: 0; }
+}
+.drawer-panel { width: min(560px, 100vw); }
+@media (max-width: 480px) {
+  .drawer-head { padding: 1.1rem 1.1rem 0.85rem; }
+  .drawer-head h2 { font-size: 1.25rem; }
+  .drawer-body { padding: 1.1rem; gap: 1.2rem; }
+  .login-card { padding: 1.75rem 1.4rem; }
+  .login-brand { gap: 0.65rem; padding-bottom: 1.1rem; margin-bottom: 1.4rem; }
+  .login-mark { width: 30px; height: 30px; }
 }
 .field-grid .k {
   font-family: var(--font-mono);
@@ -730,6 +811,9 @@ body.locked .topbar,
 body.locked .main,
 body.locked .drawer,
 body.locked .toast { display: none !important; }
+/* Quiet initial paint while the auth probe is in flight — body
+   is locked + login hidden, so the canvas just shows the
+   gradient. Beats a login-screen flash on every refresh. */
 
 .login-card {
   width: 100%;

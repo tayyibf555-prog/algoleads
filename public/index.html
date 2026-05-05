@@ -15,13 +15,16 @@
 
   <link rel="stylesheet" href="/admin.css">
 </head>
-<body>
+<body class="locked">
 
   <!-- ===================================================== -->
-  <!-- LOGIN OVERLAY — shown until valid credentials stored.  -->
-  <!-- admin.js hides this once /api/stats responds 200.      -->
+  <!-- LOGIN OVERLAY — hidden by default. admin.js probes the -->
+  <!-- stored credentials against /api/stats; only on failure -->
+  <!-- does it set aria-hidden="false" and show the overlay.   -->
+  <!-- This avoids a login-screen "flash" on refresh when the  -->
+  <!-- session is already valid.                               -->
   <!-- ===================================================== -->
-  <div class="login-screen" id="loginScreen" aria-hidden="false">
+  <div class="login-screen" id="loginScreen" aria-hidden="true">
     <div class="login-card">
       <div class="login-brand">
         <svg class="login-mark" viewBox="0 0 32 32" aria-hidden="true">

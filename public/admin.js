@@ -365,7 +365,7 @@ $$('.data thead th.sortable').forEach(th => th.addEventListener('click', () => {
 async function loadLeads() {
   if (!$('#panel-leads').classList.contains('active')) return;
   const body = $('#leadsBody');
-  setHTML(body, '<tr><td colspan="7" class="muted center">Loading…</td></tr>');
+  setHTML(body, '<tr><td colspan="7" class="muted center" data-label="">Loading…</td></tr>');
   try {
     const params = new URLSearchParams();
     if (leadState.status && leadState.status !== 'all') params.set('status', leadState.status);
@@ -374,25 +374,25 @@ async function loadLeads() {
     if (leadState.dir) params.set('dir', leadState.dir);
     const rows = await api('/api/leads?' + params.toString());
     if (!rows.length) {
-      setHTML(body, '<tr><td colspan="7" class="muted center">No leads yet.</td></tr>');
+      setHTML(body, '<tr><td colspan="7" class="muted center" data-label="">No leads yet.</td></tr>');
       return;
     }
     setHTML(body, rows.map(r => (
       '<tr data-id="' + fmt.esc(r.id) + '">' +
-        '<td>' + (fmt.esc(r.name) || '<span class="muted">—</span>') + '</td>' +
-        '<td class="mono">' + fmt.esc(r.email) + '</td>' +
-        '<td class="mono">' + (fmt.esc(r.phone) || '<span class="muted">—</span>') + '</td>' +
-        '<td class="mono">' + (fmt.esc(r.account_size) || '<span class="muted">—</span>') + '</td>' +
-        '<td><span class="status ' + fmt.esc(r.status) + '">' + fmt.esc(STATUS_LABELS[r.status] || r.status) + '</span></td>' +
-        '<td class="mono muted">' + fmt.esc(r.utm_source || r.source || '—') + '</td>' +
-        '<td class="r mono">' + fmt.esc(fmt.ago(r.created_at)) + '</td>' +
+        '<td data-label="Name">' + (fmt.esc(r.name) || '<span class="muted">—</span>') + '</td>' +
+        '<td data-label="Email" class="mono">' + fmt.esc(r.email) + '</td>' +
+        '<td data-label="Phone" class="mono">' + (fmt.esc(r.phone) || '<span class="muted">—</span>') + '</td>' +
+        '<td data-label="Account size" class="mono">' + (fmt.esc(r.account_size) || '<span class="muted">—</span>') + '</td>' +
+        '<td data-label="Status"><span class="status ' + fmt.esc(r.status) + '">' + fmt.esc(STATUS_LABELS[r.status] || r.status) + '</span></td>' +
+        '<td data-label="Source" class="mono muted">' + fmt.esc(r.utm_source || r.source || '—') + '</td>' +
+        '<td data-label="Submitted" class="r mono">' + fmt.esc(fmt.ago(r.created_at)) + '</td>' +
       '</tr>'
     )).join(''));
     $$('#leadsBody tr[data-id]').forEach(tr => tr.addEventListener('click', () => {
       openDrawer(tr.dataset.id);
     }));
   } catch (err) {
-    setHTML(body, '<tr><td colspan="7" class="muted center">Error: ' + fmt.esc(err.message) + '</td></tr>');
+    setHTML(body, '<tr><td colspan="7" class="muted center" data-label="">Error: ' + fmt.esc(err.message) + '</td></tr>');
   }
 }
 
@@ -402,27 +402,27 @@ async function loadLeads() {
 async function loadPayments() {
   if (!$('#panel-payments').classList.contains('active')) return;
   const body = $('#paymentsBody');
-  setHTML(body, '<tr><td colspan="6" class="muted center">Loading…</td></tr>');
+  setHTML(body, '<tr><td colspan="6" class="muted center" data-label="">Loading…</td></tr>');
   try {
     const rows = await api('/api/payments');
     if (!rows.length) {
-      setHTML(body, '<tr><td colspan="6" class="muted center">No payments yet.</td></tr>');
+      setHTML(body, '<tr><td colspan="6" class="muted center" data-label="">No payments yet.</td></tr>');
       return;
     }
     setHTML(body, rows.map(r => {
       const sid = r.stripe_session_id || '';
       const ref = r.client_reference_id || '';
       return '<tr>' +
-        '<td class="mono">' + (fmt.esc(r.email) || '<span class="muted">—</span>') + '</td>' +
-        '<td class="r mono">' + fmt.esc(fmt.money(r.amount_cents, r.currency || 'gbp')) + '</td>' +
-        '<td><span class="status ' + (r.status === 'paid' ? 'paid' : 'new') + '">' + fmt.esc(r.status) + '</span></td>' +
-        '<td class="mono muted">' + fmt.esc(sid.slice(0, 22)) + (sid.length > 22 ? '…' : '') + copyChip(sid) + '</td>' +
-        '<td class="mono muted">' + fmt.esc(ref.slice(0, 22)) + copyChip(ref) + '</td>' +
-        '<td class="r mono">' + fmt.esc(fmt.ago(r.created_at)) + '</td>' +
+        '<td data-label="Email" class="mono">' + (fmt.esc(r.email) || '<span class="muted">—</span>') + '</td>' +
+        '<td data-label="Amount" class="r mono">' + fmt.esc(fmt.money(r.amount_cents, r.currency || 'gbp')) + '</td>' +
+        '<td data-label="Status"><span class="status ' + (r.status === 'paid' ? 'paid' : 'new') + '">' + fmt.esc(r.status) + '</span></td>' +
+        '<td data-label="Stripe session" class="mono muted">' + fmt.esc(sid.slice(0, 22)) + (sid.length > 22 ? '…' : '') + copyChip(sid) + '</td>' +
+        '<td data-label="Reference" class="mono muted">' + fmt.esc(ref.slice(0, 22)) + copyChip(ref) + '</td>' +
+        '<td data-label="Received" class="r mono">' + fmt.esc(fmt.ago(r.created_at)) + '</td>' +
       '</tr>';
     }).join(''));
   } catch (err) {
-    setHTML(body, '<tr><td colspan="6" class="muted center">Error: ' + fmt.esc(err.message) + '</td></tr>');
+    setHTML(body, '<tr><td colspan="6" class="muted center" data-label="">Error: ' + fmt.esc(err.message) + '</td></tr>');
   }
 }
 
@@ -432,24 +432,24 @@ async function loadPayments() {
 async function loadBookings() {
   if (!$('#panel-bookings').classList.contains('active')) return;
   const body = $('#bookingsBody');
-  setHTML(body, '<tr><td colspan="5" class="muted center">Loading…</td></tr>');
+  setHTML(body, '<tr><td colspan="5" class="muted center" data-label="">Loading…</td></tr>');
   try {
     const rows = await api('/api/bookings');
     if (!rows.length) {
-      setHTML(body, '<tr><td colspan="5" class="muted center">No bookings yet.</td></tr>');
+      setHTML(body, '<tr><td colspan="5" class="muted center" data-label="">No bookings yet.</td></tr>');
       return;
     }
     setHTML(body, rows.map(r => (
       '<tr>' +
-        '<td>' + (fmt.esc(r.name) || '<span class="muted">—</span>') + '</td>' +
-        '<td class="mono">' + fmt.esc(r.email) + '</td>' +
-        '<td class="mono"><span class="status ' + (r.type === 'onboarding' ? 'paid' : 'booked') + '">' + fmt.esc(r.type) + '</span></td>' +
-        '<td class="r mono">' + fmt.esc(fmt.date(r.scheduled_at)) + '</td>' +
-        '<td class="r mono muted">' + fmt.esc(fmt.ago(r.created_at)) + '</td>' +
+        '<td data-label="Name">' + (fmt.esc(r.name) || '<span class="muted">—</span>') + '</td>' +
+        '<td data-label="Email" class="mono">' + fmt.esc(r.email) + '</td>' +
+        '<td data-label="Type" class="mono"><span class="status ' + (r.type === 'onboarding' ? 'paid' : 'booked') + '">' + fmt.esc(r.type) + '</span></td>' +
+        '<td data-label="Scheduled" class="r mono">' + fmt.esc(fmt.date(r.scheduled_at)) + '</td>' +
+        '<td data-label="Created" class="r mono muted">' + fmt.esc(fmt.ago(r.created_at)) + '</td>' +
       '</tr>'
     )).join(''));
   } catch (err) {
-    setHTML(body, '<tr><td colspan="5" class="muted center">Error: ' + fmt.esc(err.message) + '</td></tr>');
+    setHTML(body, '<tr><td colspan="5" class="muted center" data-label="">Error: ' + fmt.esc(err.message) + '</td></tr>');
   }
 }
 
