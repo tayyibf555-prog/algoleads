@@ -563,7 +563,10 @@ app.get('/', (req, res) => res.redirect(302, '/index.html'));
 // (so the auth-gated express.static block is skipped).
 // ──────────────────────────────────────────────────────────────
 if (require.main === module) {
-  app.use('/', requireAuth, express.static(path.join(__dirname, 'public'), {
+  // Static admin UI — no auth gate on the static files. The login
+  // screen (rendered by index.html → admin.js) handles auth, and
+  // every /api/* request is still gated by requireAuth.
+  app.use('/', express.static(path.join(__dirname, 'public'), {
     maxAge: '0',
     etag: false,
   }));
