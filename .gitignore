@@ -17,3 +17,6 @@ db/*.db-shm
 .DS_Store
 ._*
 .vercel
+.env
+.env.*
+!.env.example
