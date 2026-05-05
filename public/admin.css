@@ -900,6 +900,66 @@ body.locked .toast { display: none !important; }
 }
 
 /* =============================================================
+   MEMBERS — read-only mirror of member-portal signups
+   ============================================================= */
+.member-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+.stat-mini {
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  background: rgba(255, 255, 255, 0.012);
+}
+.stat-mini .v {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  line-height: 1;
+}
+.stat-mini .k {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+.member-link {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  padding: 0.18rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--hairline);
+  color: var(--ink-muted);
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.member-link.linked-paid    { color: var(--positive); border-color: rgba(52, 211, 153, 0.32); background: rgba(52, 211, 153, 0.06); }
+.member-link.linked-booked  { color: var(--gold);    border-color: var(--hairline-gold);     background: rgba(201, 164, 94, 0.06); }
+.member-link.linked-lead    { color: #FCD34D;        border-color: rgba(252, 211, 77, 0.32); background: rgba(252, 211, 77, 0.06); }
+.member-link.linked-none    { color: var(--ink-muted); }
+
+.section-head a {
+  color: var(--gold);
+  text-decoration: none;
+  border-bottom: 1px solid var(--hairline-gold);
+  transition: var(--transition);
+}
+.section-head a:hover { color: var(--ink); border-bottom-color: var(--ink); }
+
+/* =============================================================
    ANNOUNCEMENTS — composer + list
    ============================================================= */
 .section-sub {

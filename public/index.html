@@ -67,6 +67,7 @@
         <button class="tab" data-tab="leads">Leads</button>
         <button class="tab" data-tab="payments">Payments</button>
         <button class="tab" data-tab="bookings">Bookings</button>
+        <button class="tab" data-tab="members">Members</button>
         <button class="tab" data-tab="announcements">Announcements</button>
       </nav>
       <div class="topbar-actions">
@@ -212,6 +213,44 @@
           </thead>
           <tbody id="bookingsBody">
             <tr><td colspan="5" class="muted center">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- =============== Members (read-only mirror of member portal) =============== -->
+    <section class="panel" id="panel-members">
+      <div class="section-head leads-head">
+        <div>
+          <span class="label">Member portal</span>
+          <h1>Members</h1>
+          <p class="section-sub">People who created an account at <a href="https://algomembers.vercel.app" target="_blank" rel="noopener">algomembers.vercel.app</a>. Read-only — manage anything else (lead status, payments) from the relevant tab.</p>
+        </div>
+        <div class="leads-actions">
+          <input class="input search" id="memberSearch" placeholder="Search by name or email…" autocomplete="off">
+        </div>
+      </div>
+      <div class="member-stats">
+        <div class="stat-mini" id="memStatTotal"><span class="v">—</span><span class="k">Total members</span></div>
+        <div class="stat-mini" id="memStatPaid"><span class="v">—</span><span class="k">Linked to a payment</span></div>
+        <div class="stat-mini" id="memStatBooking"><span class="v">—</span><span class="k">Linked to a booking</span></div>
+        <div class="stat-mini" id="memStatActive7"><span class="v">—</span><span class="k">Logged in last 7 days</span></div>
+      </div>
+      <div class="table-wrap">
+        <table class="data">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Email</th>
+              <th class="r">Status</th>
+              <th class="r">Paid</th>
+              <th class="r">Bookings</th>
+              <th class="r">Last login</th>
+              <th class="r">Signed up</th>
+            </tr>
+          </thead>
+          <tbody id="membersBody">
+            <tr><td colspan="7" class="muted center" data-label="">Loading…</td></tr>
           </tbody>
         </table>
       </div>

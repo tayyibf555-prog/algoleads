@@ -474,6 +474,54 @@ app.get('/api/bookings', requireAuth, async (req, res) => {
 });
 
 // ──────────────────────────────────────────────────────────────
+// Members — read-only window into the member portal's members
+// table. The admin never writes here. password_hash is never
+// returned. Each row is enriched with lead/payment/booking counts
+// (joined by email) so the admin can tell at a glance who's a
+// paying customer vs a member who hasn't paid yet.
+// ──────────────────────────────────────────────────────────────
+app.get('/api/members', requireAuth, async (req, res) => {
+  try {
+    const search = String(req.query.search || '').trim();
+    let where = '';
+    const params = [];
+    if (search) {
+      where = `WHERE m.email LIKE ? OR m.name LIKE ?`;
+      params.push(`%${search}%`, `%${search}%`);
+    }
+    // password_hash is intentionally excluded.
+    const rows = await all(
+      `SELECT
+         m.id,
+         m.email,
+         m.name,
+         m.created_at,
+         m.last_login_at,
+         (SELECT COUNT(*) FROM leads    WHERE leads.email    = m.email) AS leads_count,
+         (SELECT COUNT(*) FROM payments WHERE payments.email = m.email) AS payments_count,
+         (SELECT COALESCE(SUM(amount_cents), 0) FROM payments WHERE payments.email = m.email) AS paid_pence,
+         (SELECT COUNT(*) FROM bookings WHERE bookings.email = m.email) AS bookings_count,
+         (SELECT MAX(scheduled_at) FROM bookings WHERE bookings.email = m.email) AS next_booking_at
+       FROM members m
+       ${where}
+       ORDER BY m.created_at DESC
+       LIMIT 500`,
+      params
+    );
+    res.json(rows);
+  } catch (err) {
+    // If the members table doesn't exist yet (admin local DB never
+    // saw a member-portal write) the schema migrate already created
+    // it; this catch is a final safety net.
+    if (String(err && err.message).match(/no such table: members/i)) {
+      return res.json([]);
+    }
+    console.error('GET /api/members', err);
+    res.status(500).json({ error: 'internal error' });
+  }
+});
+
+// ──────────────────────────────────────────────────────────────
 // Announcements — the ONLY admin↔member shared surface. Admin
 // writes here; the member portal reads via its own
 // GET /api/announcements (no admin auth there, just the member's

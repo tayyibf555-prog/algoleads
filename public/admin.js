@@ -64,7 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Boot the admin
         if (typeof setTab === 'function') {
           const initial = (location.hash || '#overview').replace('#', '');
-          const valid = ['overview', 'leads', 'payments', 'bookings', 'announcements'];
+          const valid = ['overview', 'leads', 'payments', 'bookings', 'members', 'announcements'];
           setTab(valid.indexOf(initial) >= 0 ? initial : 'overview');
         }
       } else {
@@ -266,6 +266,7 @@ async function loadPanel(name) {
   if (name === 'leads')         await loadLeads();
   if (name === 'payments')      await loadPayments();
   if (name === 'bookings')      await loadBookings();
+  if (name === 'members')       await loadMembers();
   if (name === 'announcements') await loadAnnouncements();
 }
 
@@ -451,6 +452,83 @@ async function loadBookings() {
     )).join(''));
   } catch (err) {
     setHTML(body, '<tr><td colspan="5" class="muted center" data-label="">Error: ' + fmt.esc(err.message) + '</td></tr>');
+  }
+}
+
+// ──────────────────────────────────────────────────────────────
+// MEMBERS — read-only mirror of the member portal's signups,
+// joined to lead/payment/booking counts so the admin sees who's
+// a paying customer vs who's just signed up. The admin never
+// writes to the members table — that's owned by the member
+// portal.
+// ──────────────────────────────────────────────────────────────
+let _memberSearchWired = false;
+let _memberSearchTimer = null;
+
+async function loadMembers(search) {
+  if (!$('#panel-members').classList.contains('active')) return;
+  if (!_memberSearchWired) {
+    const box = $('#memberSearch');
+    if (box) {
+      box.addEventListener('input', () => {
+        clearTimeout(_memberSearchTimer);
+        _memberSearchTimer = setTimeout(() => loadMembers(box.value.trim()), 250);
+      });
+    }
+    _memberSearchWired = true;
+  }
+  const body = $('#membersBody');
+  setHTML(body, '<tr><td colspan="7" class="muted center" data-label="">Loading…</td></tr>');
+  try {
+    const url = '/api/members' + (search ? ('?search=' + encodeURIComponent(search)) : '');
+    const rows = await api(url);
+
+    // Mini-stats above the table
+    const total = rows.length;
+    const paid    = rows.filter(r => (r.payments_count || 0) > 0).length;
+    const booked  = rows.filter(r => (r.bookings_count || 0) > 0).length;
+    const week    = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const active7 = rows.filter(r => (r.last_login_at || 0) >= week).length;
+    $('#memStatTotal .v').textContent = String(total);
+    $('#memStatPaid .v').textContent = String(paid);
+    $('#memStatBooking .v').textContent = String(booked);
+    $('#memStatActive7 .v').textContent = String(active7);
+
+    if (!rows.length) {
+      setHTML(body, '<tr><td colspan="7" class="muted center" data-label="">' + (search ? 'No matches.' : 'No members yet. The first signup at algomembers.vercel.app will appear here.') + '</td></tr>');
+      return;
+    }
+    setHTML(body, rows.map(r => {
+      const linkBadge = r.payments_count > 0
+        ? '<span class="member-link linked-paid">Paid</span>'
+        : r.bookings_count > 0
+          ? '<span class="member-link linked-booked">Booked</span>'
+          : r.leads_count > 0
+            ? '<span class="member-link linked-lead">Lead only</span>'
+            : '<span class="member-link linked-none">Signup only</span>';
+      const paidStr = r.paid_pence > 0
+        ? fmt.money(r.paid_pence, 'gbp')
+        : '<span class="muted">—</span>';
+      const bookingsStr = r.bookings_count > 0
+        ? String(r.bookings_count)
+        : '<span class="muted">—</span>';
+      const lastLogin = r.last_login_at
+        ? fmt.esc(fmt.ago(r.last_login_at))
+        : '<span class="muted">never</span>';
+      return (
+        '<tr>' +
+          '<td data-label="Name">' + (fmt.esc(r.name) || '<span class="muted">—</span>') + '</td>' +
+          '<td data-label="Email" class="mono">' + fmt.esc(r.email) + '</td>' +
+          '<td data-label="Status" class="r">' + linkBadge + '</td>' +
+          '<td data-label="Paid" class="r mono">' + paidStr + '</td>' +
+          '<td data-label="Bookings" class="r mono">' + bookingsStr + '</td>' +
+          '<td data-label="Last login" class="r mono muted">' + lastLogin + '</td>' +
+          '<td data-label="Signed up" class="r mono muted">' + fmt.esc(fmt.ago(r.created_at)) + '</td>' +
+        '</tr>'
+      );
+    }).join(''));
+  } catch (err) {
+    setHTML(body, '<tr><td colspan="7" class="muted center" data-label="">Error: ' + fmt.esc(err.message) + '</td></tr>');
   }
 }
 
