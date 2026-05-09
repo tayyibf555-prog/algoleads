@@ -80,52 +80,125 @@
   <main class="main">
 
     <!-- ============== OVERVIEW ============== -->
+    <!-- ============================================================
+         OVERVIEW — redesigned per the dashboardUI seven principles.
+         The single screen the founder reads every morning. Built
+         insight-first; the chart proves the insight, never leads.
+         Stat cards have been deliberately removed in favour of the
+         Pipeline Pulse ownable metric and the actionable list below.
+         ============================================================ -->
     <section class="panel active" id="panel-overview">
-      <div class="section-head">
-        <span class="label">Snapshot</span>
-        <h1>Overview</h1>
+
+      <!-- Slim header bar — context + live indicator (principle 5: discipline) -->
+      <header class="ov-head">
+        <div class="ov-head-text">
+          <span class="label">Algo by Excelsior · Founder dashboard</span>
+          <h1 id="ovGreeting">Good morning.</h1>
+          <p class="ov-context" id="ovContext">Loading today's pulse…</p>
+        </div>
+        <div class="ov-live"><span class="pulse"></span><span>Live</span></div>
+      </header>
+
+      <!-- Principle 1: Insight-first hero card.
+           Single AI-derived observation in plain English + an action
+           button. The chart proving it sits in the equity-curve card
+           further down, never above. -->
+      <article class="insight-card" id="insightCard">
+        <div class="insight-icon" aria-hidden="true">
+          <svg viewBox="0 0 28 28" width="28" height="28">
+            <circle cx="14" cy="14" r="12" fill="none" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M9 14 L13 18 L20 10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="insight-body">
+          <span class="label">Today's signal</span>
+          <p class="insight-text" id="insightText">Reading the pipeline…</p>
+        </div>
+        <div class="insight-actions">
+          <button class="btn btn-primary" id="insightAction" data-target-tab="leads">Open</button>
+        </div>
+      </article>
+
+      <!-- Principle 2: the ownable metric (Pipeline Pulse) +
+           the supporting metric (Days-to-paid). Two-column row.
+           Maximum 4 stat numbers visible total — by design. -->
+      <div class="ov-metrics">
+        <article class="metric-card pulse-card" id="pulseCard">
+          <div class="metric-head">
+            <span class="label">Pipeline Pulse</span>
+            <span class="metric-help" title="Composite weekly score: leads (40%) + bookings next 7d (35%) + payments last 7d (25%). 100 = hitting all targets.">?</span>
+          </div>
+          <div class="metric-value-row">
+            <span class="metric-value" id="pulseValue">—</span>
+            <span class="metric-unit">/ 100</span>
+          </div>
+          <p class="metric-takeaway" id="pulseTakeaway">Composite weekly score — leads, bookings, payments.</p>
+          <svg class="metric-spark" id="pulseSpark" viewBox="0 0 200 36" preserveAspectRatio="none" aria-hidden="true">
+            <path id="pulseSparkLine" d="" fill="none" stroke="#C9A45E" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+            <path id="pulseSparkFill" d="" fill="rgba(201,164,94,0.08)"/>
+          </svg>
+          <div class="pulse-components">
+            <div class="pc"><span class="pc-k">Leads</span><span class="pc-v" id="pulseLeads">—</span></div>
+            <div class="pc"><span class="pc-k">Bookings</span><span class="pc-v" id="pulseBookings">—</span></div>
+            <div class="pc"><span class="pc-k">Payments</span><span class="pc-v" id="pulsePayments">—</span></div>
+          </div>
+        </article>
+
+        <article class="metric-card support-card">
+          <div class="metric-head">
+            <span class="label">Days-to-paid</span>
+            <span class="metric-help" title="Rolling 60-day average: time from a lead's first form fill to their first successful payment.">?</span>
+          </div>
+          <div class="metric-value-row">
+            <span class="metric-value" id="d2pValue">—</span>
+            <span class="metric-unit">days</span>
+          </div>
+          <p class="metric-takeaway" id="d2pTakeaway">Rolling 60-day average. Lower is faster funnel velocity.</p>
+        </article>
       </div>
 
-      <div class="stat-grid" id="statGrid">
-        <div class="stat-card">
-          <div class="stat-label">Total leads</div>
-          <div class="stat-value" data-stat="totalLeads">—</div>
-          <div class="stat-meta"><span data-stat="last24Leads">—</span> in last 24h</div>
+      <!-- Principle 3: one unusual visual — the brand's signature
+           equity-curve, applied to gross paid revenue. Single thin
+           gold line, no fill, no axis labels. The chart that proves
+           the founder's business is real. -->
+      <article class="equity-card">
+        <div class="metric-head">
+          <span class="label">Founder's equity curve</span>
+          <span class="ec-meta" id="ecMeta">All-time gross paid · GBP</span>
         </div>
-        <div class="stat-card">
-          <div class="stat-label">Paid customers</div>
-          <div class="stat-value pos" data-stat="totalPaid">—</div>
-          <div class="stat-meta"><span data-stat="last24Paid">—</span> paid in last 24h</div>
+        <p class="metric-takeaway" id="ecTakeaway">No paid customers yet. Your first payment will draw the first segment.</p>
+        <div class="equity-canvas">
+          <svg id="equitySvg" viewBox="0 0 800 220" preserveAspectRatio="none" aria-hidden="true">
+            <line class="ec-grid" x1="0" y1="55"  x2="800" y2="55"/>
+            <line class="ec-grid" x1="0" y1="110" x2="800" y2="110"/>
+            <line class="ec-grid" x1="0" y1="165" x2="800" y2="165"/>
+            <path id="equityFill" d="" fill="url(#equityGrad)" opacity="0.18"/>
+            <path id="equityLine" d="" fill="none" stroke="#C9A45E" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            <defs>
+              <linearGradient id="equityGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#C9A45E" stop-opacity="0.6"/>
+                <stop offset="1" stop-color="#C9A45E" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+          </svg>
+          <div class="equity-empty hidden" id="equityEmpty">
+            <span class="label">Waiting for first payment</span>
+          </div>
         </div>
-        <div class="stat-card">
-          <div class="stat-label">Conversion rate</div>
-          <div class="stat-value" data-stat="conversionRate" data-suffix="%">—</div>
-          <div class="stat-meta">form-fill → paid</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Revenue (lifetime)</div>
-          <div class="stat-value pos" id="revenueValue">—</div>
-          <div class="stat-meta">all-time gross</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Upcoming calls</div>
-          <div class="stat-value" data-stat="upcomingBookings">—</div>
-          <div class="stat-meta">discovery + onboarding</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">This week</div>
-          <div class="stat-value" data-stat="lastWeekLeads">—</div>
-          <div class="stat-meta">new leads</div>
-        </div>
-      </div>
+      </article>
 
-      <div class="funnel-card">
-        <div class="funnel-head">
-          <span class="label">Funnel</span>
-          <span class="hint">form-fill → contacted → booked → paid · lost</span>
+      <!-- Principle 4: today's three things — concrete actions, not a
+           generic activity feed. The dashboard tells you what to do,
+           not just what happened. -->
+      <article class="todo-card">
+        <div class="metric-head">
+          <span class="label">Today's three things</span>
+          <span class="metric-help" title="Derived from the current state of leads, payments, bookings, and announcements.">?</span>
         </div>
-        <div class="funnel-rows" id="funnelRows"></div>
-      </div>
+        <ol class="todo-list" id="todoList">
+          <li class="todo-empty">Reading the pipeline…</li>
+        </ol>
+      </article>
     </section>
 
     <!-- ============== LEADS ============== -->

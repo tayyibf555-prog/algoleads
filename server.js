@@ -618,6 +618,294 @@ app.delete('/api/announcements/:id', requireAuth, async (req, res) => {
   }
 });
 
+// ──────────────────────────────────────────────────────────────
+// Overview — the dashboardUI redesign target.
+//
+// Returns one cohesive payload powering the Overview tab:
+//   - pulse:         Pipeline Pulse score (0-100) + 14-day history
+//                    + per-component breakdown (leads/bookings/payments)
+//   - daysToPaid:    rolling avg days from lead creation → payment
+//   - insight:       single rule-based observation (priority sorted)
+//   - todaysThree:   1-3 concrete actions for the founder today
+//   - equityCurve:   cumulative paid revenue over time
+//
+// All of this is derived from the existing tables (leads, payments,
+// bookings, announcements, members). No new schema needed.
+// ──────────────────────────────────────────────────────────────
+const PULSE_TARGETS = {
+  // Calibrated for a founder-stage business. Hitting all three weekly
+  // targets yields Pulse = 100. Half = 50. Adjust as the business
+  // grows.
+  leadsPerWeek:    10,
+  bookingsPerWeek:  5,
+  paymentsPerWeek:  3,
+};
+
+function calcPulse({ leads, bookings, payments }) {
+  const ls = Math.min(40, Math.round(40 * (leads    / PULSE_TARGETS.leadsPerWeek)));
+  const bs = Math.min(35, Math.round(35 * (bookings / PULSE_TARGETS.bookingsPerWeek)));
+  const ps = Math.min(25, Math.round(25 * (payments / PULSE_TARGETS.paymentsPerWeek)));
+  return { score: ls + bs + ps, leads: ls, bookings: bs, payments: ps };
+}
+
+async function safeCount(sql, args) {
+  try { const r = await get(sql, args); return r ? Number(r.c || 0) : 0; }
+  catch (_) { return 0; }
+}
+
+async function safeAll(sql, args) {
+  try { return await all(sql, args); } catch (_) { return []; }
+}
+
+async function generateInsight(now) {
+  const day = 24 * 60 * 60 * 1000;
+  const week = 7 * day;
+
+  const leadsThisWeek = await safeCount('SELECT COUNT(*) c FROM leads WHERE created_at > ?', [now - week]);
+  const leadsLastWeek = await safeCount('SELECT COUNT(*) c FROM leads WHERE created_at > ? AND created_at <= ?', [now - 2*week, now - week]);
+  const bookingsThisWeek = await safeCount('SELECT COUNT(*) c FROM bookings WHERE created_at > ?', [now - week]);
+  const bookingsLastWeek = await safeCount('SELECT COUNT(*) c FROM bookings WHERE created_at > ? AND created_at <= ?', [now - 2*week, now - week]);
+  const paymentsThisWeek = await safeCount('SELECT COUNT(*) c FROM payments WHERE created_at > ?', [now - week]);
+
+  const uncontacted = await safeAll(
+    `SELECT id, name, email, created_at FROM leads
+       WHERE status = 'new' AND created_at < ?
+       ORDER BY created_at ASC LIMIT 5`,
+    [now - day]
+  );
+
+  const paidNoBooking = await safeAll(
+    `SELECT DISTINCT p.email, MIN(p.created_at) AS paid_at
+       FROM payments p
+       LEFT JOIN bookings b ON b.email = p.email
+       WHERE p.status = 'paid' AND b.id IS NULL AND p.created_at > ?
+       GROUP BY p.email`,
+    [now - 30 * day]
+  );
+
+  const lastAnn = await get('SELECT MAX(published_at) ts FROM announcements').catch(() => null);
+  const daysSinceAnn = (lastAnn && lastAnn.ts) ? Math.floor((now - lastAnn.ts) / day) : null;
+
+  // Rule priority — most action-needing first
+  if (paidNoBooking.length) {
+    const n = paidNoBooking.length;
+    return {
+      text: `${n} paid customer${n > 1 ? "s haven't" : " hasn't"} booked an onboarding call yet. Reach out before they go cold.`,
+      actionLabel: 'Open payments',
+      actionTab: 'payments',
+    };
+  }
+  if (uncontacted.length >= 2) {
+    const oldest = uncontacted[0];
+    const days = Math.max(1, Math.floor((now - oldest.created_at) / day));
+    const who = (oldest.name || oldest.email || 'a lead').split(' ')[0];
+    return {
+      text: `${uncontacted.length} leads from the last week haven't been contacted. The oldest, ${who}, has been waiting ${days} day${days !== 1 ? 's' : ''}.`,
+      actionLabel: 'Open leads',
+      actionTab: 'leads',
+    };
+  }
+  // Booking-rate drop (only if there's enough lead volume to be meaningful)
+  if (leadsThisWeek >= 3 && leadsLastWeek >= 3) {
+    const thisRate = bookingsThisWeek / leadsThisWeek;
+    const lastRate = bookingsLastWeek / leadsLastWeek;
+    if (lastRate > 0 && thisRate < lastRate * 0.7) {
+      const dropPct = Math.round((1 - thisRate / lastRate) * 100);
+      return {
+        text: `Lead-to-booking conversion dropped ${dropPct}% this week. Forms are filling but calls aren't booking.`,
+        actionLabel: 'Open bookings',
+        actionTab: 'bookings',
+      };
+    }
+  }
+  if (daysSinceAnn !== null && daysSinceAnn > 7) {
+    return {
+      text: `Last member announcement was ${daysSinceAnn} days ago. A weekly cadence keeps members engaged on the portal.`,
+      actionLabel: 'Open announcements',
+      actionTab: 'announcements',
+    };
+  }
+  if (daysSinceAnn === null) {
+    return {
+      text: `No announcements published yet. Members see this on every login, the first one anchors the cadence.`,
+      actionLabel: 'Open announcements',
+      actionTab: 'announcements',
+    };
+  }
+
+  // Steady-state default
+  if (leadsThisWeek === 0 && paymentsThisWeek === 0) {
+    return {
+      text: `Quiet week. No new leads or payments yet. Time to push outbound or refresh the lead-magnet copy.`,
+      actionLabel: 'Open leads',
+      actionTab: 'leads',
+    };
+  }
+  return {
+    text: `Steady week. ${leadsThisWeek} new lead${leadsThisWeek !== 1 ? 's' : ''}, ${bookingsThisWeek} booking${bookingsThisWeek !== 1 ? 's' : ''}, ${paymentsThisWeek} payment${paymentsThisWeek !== 1 ? 's' : ''}.`,
+    actionLabel: 'Open leads',
+    actionTab: 'leads',
+  };
+}
+
+async function generateTodaysThree(now) {
+  const day = 24 * 60 * 60 * 1000;
+  const tasks = [];
+
+  // Task 1: oldest uncontacted lead
+  const oldLead = await get(
+    `SELECT id, name, email, created_at FROM leads
+      WHERE status = 'new' AND created_at < ?
+      ORDER BY created_at ASC LIMIT 1`,
+    [now - day]
+  ).catch(() => null);
+  if (oldLead) {
+    const days = Math.max(1, Math.floor((now - oldLead.created_at) / day));
+    tasks.push({
+      action: `Reply to ${oldLead.name || oldLead.email}`,
+      evidence: `submitted ${days} day${days !== 1 ? 's' : ''} ago, no reply logged`,
+      tab: 'leads',
+    });
+  }
+
+  // Task 2: most recent paid customer without a booking
+  const paidNoBooking = await get(
+    `SELECT p.email, p.created_at FROM payments p
+      WHERE p.status = 'paid'
+        AND p.email NOT IN (SELECT email FROM bookings WHERE email IS NOT NULL)
+      ORDER BY p.created_at DESC LIMIT 1`
+  ).catch(() => null);
+  if (paidNoBooking && paidNoBooking.email) {
+    const hours = Math.max(1, Math.floor((now - paidNoBooking.created_at) / (60 * 60 * 1000)));
+    const since = hours < 24 ? `${hours}h ago` : `${Math.floor(hours / 24)}d ago`;
+    tasks.push({
+      action: `Confirm onboarding with ${paidNoBooking.email}`,
+      evidence: `paid ${since}, no booking yet`,
+      tab: 'payments',
+    });
+  }
+
+  // Task 3: publish an announcement if stale
+  const lastAnn = await get('SELECT MAX(published_at) ts FROM announcements').catch(() => null);
+  const annTs = lastAnn && lastAnn.ts;
+  if (!annTs) {
+    tasks.push({
+      action: 'Publish your first announcement',
+      evidence: 'members see this on login',
+      tab: 'announcements',
+    });
+  } else {
+    const days = Math.floor((now - annTs) / day);
+    if (days > 7) {
+      tasks.push({
+        action: 'Publish a weekly update',
+        evidence: `last announcement was ${days} days ago`,
+        tab: 'announcements',
+      });
+    }
+  }
+
+  // Pad to three with a member-investigate task if we have headroom
+  if (tasks.length < 3) {
+    const signup = await get(
+      `SELECT m.email, m.name, m.created_at FROM members m
+        WHERE m.email NOT IN (SELECT email FROM leads WHERE email != '')
+        ORDER BY m.created_at DESC LIMIT 1`
+    ).catch(() => null);
+    if (signup && signup.email) {
+      tasks.push({
+        action: `Investigate ${signup.email}`,
+        evidence: 'member signup without matching lead',
+        tab: 'members',
+      });
+    }
+  }
+
+  // Final fallback so the card never renders empty
+  if (!tasks.length) {
+    tasks.push({
+      action: 'Review today\'s lead inflow',
+      evidence: 'no urgent items detected, sweep the funnel',
+      tab: 'leads',
+    });
+  }
+
+  return tasks.slice(0, 3);
+}
+
+app.get('/api/overview', requireAuth, async (req, res) => {
+  try {
+    const now = Date.now();
+    const day  = 24 * 60 * 60 * 1000;
+    const week = 7 * day;
+
+    // Current Pulse window
+    const leadsLast7d    = await safeCount('SELECT COUNT(*) c FROM leads WHERE created_at > ?', [now - week]);
+    const bookingsNext7d = await safeCount('SELECT COUNT(*) c FROM bookings WHERE scheduled_at > ? AND scheduled_at <= ?', [now, now + week]);
+    const paymentsLast7d = await safeCount("SELECT COUNT(*) c FROM payments WHERE status = 'paid' AND created_at > ?", [now - week]);
+
+    const pulse = calcPulse({ leads: leadsLast7d, bookings: bookingsNext7d, payments: paymentsLast7d });
+
+    // 14-day history — recompute Pulse for each daily snapshot.
+    // Small data, so the loop is cheap; revisit if leads ever spike.
+    const history = [];
+    for (let d = 13; d >= 0; d--) {
+      const t = now - d * day;
+      const l = await safeCount('SELECT COUNT(*) c FROM leads WHERE created_at > ? AND created_at <= ?', [t - week, t]);
+      const b = await safeCount('SELECT COUNT(*) c FROM bookings WHERE scheduled_at > ? AND scheduled_at <= ?', [t, t + week]);
+      const p = await safeCount("SELECT COUNT(*) c FROM payments WHERE status = 'paid' AND created_at > ? AND created_at <= ?", [t - week, t]);
+      history.push(calcPulse({ leads: l, bookings: b, payments: p }).score);
+    }
+
+    // Days-to-paid: avg lead-creation → first-payment for the last 60 days
+    const conversions = await safeAll(
+      `SELECT l.created_at AS lead_at, MIN(p.created_at) AS paid_at
+         FROM leads l
+         JOIN payments p ON p.email = l.email AND p.status = 'paid'
+         WHERE p.created_at > ?
+         GROUP BY l.id
+         HAVING paid_at >= lead_at`,
+      [now - 60 * day]
+    );
+    const daysToPaid = conversions.length
+      ? +(conversions.reduce((s, r) => s + (r.paid_at - r.lead_at), 0) / conversions.length / day).toFixed(1)
+      : null;
+
+    // Equity curve — cumulative paid revenue over time
+    const payments = await safeAll(
+      "SELECT created_at, amount_cents FROM payments WHERE status = 'paid' ORDER BY created_at ASC LIMIT 500"
+    );
+    let cum = 0;
+    const equityCurve = payments.map((p) => {
+      cum += Number(p.amount_cents || 0);
+      return { t: p.created_at, v: cum };
+    });
+
+    // Insight + today's three
+    const [insight, todaysThree] = await Promise.all([
+      generateInsight(now),
+      generateTodaysThree(now),
+    ]);
+
+    res.json({
+      generated_at: now,
+      pulse: { ...pulse, history },
+      daysToPaid,
+      equityCurve,
+      insight,
+      todaysThree,
+      // Bare numbers kept for any code still hitting this for sanity
+      leadsLast7d,
+      bookingsNext7d,
+      paymentsLast7d,
+      currency: 'gbp',
+    });
+  } catch (err) {
+    console.error('GET /api/overview', err);
+    res.status(500).json({ error: 'internal error' });
+  }
+});
+
 app.get('/api/stats', requireAuth, async (req, res) => {
   try {
     const dayMs = Date.now() - 24 * 60 * 60 * 1000;

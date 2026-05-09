@@ -281,7 +281,328 @@ button:focus-visible, a:focus-visible, .input:focus-visible {
 .leads-actions { min-width: 280px; flex: 1; max-width: 420px; }
 
 /* =============================================================
-   STAT CARDS
+   OVERVIEW — dashboardUI redesign (insight-first, ownable metric,
+   one unusual visual, today's three things)
+   ============================================================= */
+.ov-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+.ov-head-text { flex: 1; min-width: 260px; }
+.ov-head h1 {
+  font-family: var(--font-display);
+  font-size: clamp(1.875rem, 3.5vw, 2.5rem);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  margin-top: 0.85rem;
+  color: var(--ink);
+  line-height: 1.05;
+}
+.ov-context {
+  margin-top: 0.65rem;
+  font-family: var(--font-body);
+  font-size: 0.9375rem;
+  color: var(--ink-muted);
+  max-width: 60ch;
+}
+.ov-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+}
+.ov-live .pulse {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #34D399;
+  box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.5);
+  animation: ovPulse 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+@keyframes ovPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.5); }
+  50%      { box-shadow: 0 0 0 6px rgba(52, 211, 153, 0); }
+}
+
+/* Insight hero — the page's single most important element */
+.insight-card {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 1.25rem;
+  align-items: center;
+  padding: 1.5rem 1.75rem;
+  border: 1px solid var(--hairline-gold);
+  border-radius: 14px;
+  background:
+    linear-gradient(135deg, rgba(201, 164, 94, 0.06) 0%, rgba(201, 164, 94, 0.015) 50%, transparent 100%),
+    rgba(255, 255, 255, 0.012);
+  margin-bottom: 1.5rem;
+}
+.insight-icon {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  background: rgba(201, 164, 94, 0.1);
+  border: 1px solid var(--hairline-gold);
+  color: var(--gold);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.insight-body { min-width: 0; }
+.insight-body .label { display: block; margin-bottom: 0.5rem; }
+.insight-text {
+  font-family: var(--font-display);
+  font-size: clamp(1.0625rem, 1.7vw, 1.25rem);
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--ink);
+  letter-spacing: -0.005em;
+}
+.insight-actions { flex-shrink: 0; }
+.insight-actions .btn { white-space: nowrap; }
+
+/* Two-column metrics row — Pulse + Days-to-paid */
+.ov-metrics {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.metric-card {
+  border: 1px solid var(--hairline);
+  border-radius: 14px;
+  padding: 1.4rem 1.5rem;
+  background: rgba(255, 255, 255, 0.012);
+  transition: var(--transition);
+}
+.metric-card:hover { border-color: var(--hairline-hi); }
+.metric-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.85rem;
+}
+.metric-help {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.12em;
+  color: var(--ink-faint);
+  border: 1px solid var(--hairline);
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: help;
+}
+.ec-meta {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+.metric-value-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  margin-bottom: 0.5rem;
+}
+.metric-value {
+  font-family: var(--font-display);
+  font-size: clamp(2.5rem, 4.2vw, 3.5rem);
+  font-weight: 700;
+  color: var(--gold);
+  letter-spacing: -0.03em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.metric-unit {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  color: var(--ink-muted);
+  letter-spacing: 0.04em;
+}
+.metric-takeaway {
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  color: var(--ink-muted);
+  line-height: 1.5;
+  max-width: 50ch;
+}
+
+/* Pulse spark + components row */
+.metric-spark {
+  display: block;
+  width: 100%;
+  height: 36px;
+  margin: 1rem 0 0.85rem;
+}
+.pulse-components {
+  display: flex;
+  gap: 1.5rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--hairline);
+}
+.pc { display: flex; flex-direction: column; gap: 0.2rem; }
+.pc-k {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.pc-v {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Equity-curve card — the one unusual visual (the brand's signature
+   thin gold line, applied to gross paid revenue). */
+.equity-card {
+  border: 1px solid var(--hairline);
+  border-radius: 14px;
+  padding: 1.4rem 1.5rem;
+  background: rgba(255, 255, 255, 0.012);
+  margin-bottom: 1.5rem;
+}
+.equity-canvas {
+  position: relative;
+  margin-top: 1rem;
+  border-top: 1px solid var(--hairline);
+  padding-top: 1rem;
+}
+#equitySvg {
+  display: block;
+  width: 100%;
+  height: 220px;
+}
+.ec-grid { stroke: var(--hairline); stroke-width: 1; }
+.equity-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.equity-empty .label {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.18em;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+}
+.hidden { display: none !important; }
+
+/* Today's three things — numbered list, action + evidence per row */
+.todo-card {
+  border: 1px solid var(--hairline);
+  border-radius: 14px;
+  padding: 1.4rem 1.5rem;
+  background: rgba(255, 255, 255, 0.012);
+}
+.todo-list {
+  list-style: none;
+  margin: 0.85rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.todo-list li {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 1.15rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--hairline);
+  cursor: pointer;
+  transition: var(--transition);
+}
+.todo-list li:last-child { border-bottom: 0; }
+.todo-list li:hover {
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+.todo-list li.todo-empty {
+  display: block;
+  cursor: default;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--ink-faint);
+  text-align: center;
+  padding: 1.5rem 0;
+}
+.todo-num {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.18em;
+  color: var(--gold);
+  border: 1px solid var(--hairline-gold);
+  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: rgba(201, 164, 94, 0.04);
+}
+.todo-text { min-width: 0; }
+.todo-action {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--ink);
+  line-height: 1.35;
+  letter-spacing: -0.005em;
+}
+.todo-evidence {
+  margin-top: 0.25rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--ink-muted);
+  letter-spacing: 0.02em;
+}
+.todo-arrow {
+  color: var(--ink-faint);
+  flex-shrink: 0;
+  transition: var(--transition);
+}
+.todo-list li:hover .todo-arrow { color: var(--gold); transform: translateX(3px); }
+
+/* Mobile — stack metric cards, tighten paddings */
+@media (max-width: 720px) {
+  .ov-head h1 { font-size: clamp(1.5rem, 6vw, 2rem); }
+  .insight-card {
+    grid-template-columns: 1fr;
+    text-align: left;
+    padding: 1.25rem;
+  }
+  .insight-actions .btn { width: 100%; }
+  .ov-metrics { grid-template-columns: 1fr; }
+  .pulse-components { gap: 1rem; }
+  #equitySvg { height: 160px; }
+  .todo-list li { padding: 0.85rem 0; gap: 0.85rem; }
+}
+
+/* =============================================================
+   STAT CARDS (legacy — only used in non-overview panels now)
    ============================================================= */
 .stat-grid {
   display: grid;

@@ -275,56 +275,183 @@ async function loadPanel(name) {
 // ──────────────────────────────────────────────────────────────
 async function loadOverview() {
   try {
-    const stats = await api('/api/stats');
-    $$('[data-stat]').forEach(el => {
-      const key = el.dataset.stat;
-      const suffix = el.dataset.suffix || '';
-      const v = stats[key];
-      if (v === undefined || v === null) {
-        el.textContent = '—';
-      } else if (typeof v === 'number') {
-        el.textContent = (v.toLocaleString ? v.toLocaleString('en-GB') : String(v)) + suffix;
-      } else {
-        el.textContent = String(v) + suffix;
-      }
-    });
-    $('#revenueValue').textContent = fmt.money(stats.totalRevenuePence || 0, 'gbp');
-
-    const total = stats.totalLeads || 0;
-    const order = [
-      { key: 'new',       label: 'New' },
-      { key: 'contacted', label: 'Contacted' },
-      { key: 'booked',    label: 'Booked' },
-      { key: 'paid',      label: 'Paid' },
-      { key: 'lost',      label: 'Lost' }
-    ];
-    const counts = {
-      new:       stats.totalLeads - stats.totalContacted - stats.totalBooked - stats.totalLost,
-      contacted: stats.totalContacted,
-      booked:    stats.totalBooked - stats.totalPaid,
-      paid:      stats.totalPaid,
-      lost:      stats.totalLost
-    };
-    counts.new = Math.max(0, counts.new);
-    counts.booked = Math.max(0, counts.booked);
-
-    const max = Math.max(1, Math.max.apply(null, Object.values(counts)));
-    const html = order.map(o => {
-      const c = counts[o.key] || 0;
-      const pct = total > 0 ? Math.round((c / total) * 100) : 0;
-      const w = Math.round((c / max) * 100);
-      return '<div class="funnel-row">' +
-        '<span class="key">' + fmt.esc(o.label) + '</span>' +
-        '<div class="bar"><div class="bar-fill" style="width:' + w + '%"></div></div>' +
-        '<span class="count">' + c + '</span>' +
-        '<span class="pct">' + pct + '%</span>' +
-      '</div>';
-    }).join('');
-    setHTML($('#funnelRows'), html);
+    const data = await api('/api/overview');
+    paintGreeting();
+    paintInsight(data.insight, data.pulse, data.daysToPaid);
+    paintPulse(data.pulse);
+    paintDaysToPaid(data.daysToPaid);
+    paintEquityCurve(data.equityCurve, data.currency);
+    paintTodaysThree(data.todaysThree);
   } catch (err) {
-    toast('Failed to load stats', 'error');
+    toast('Failed to load overview', 'error');
     console.error(err);
   }
+}
+
+function paintGreeting() {
+  const h = new Date().getHours();
+  const greet =
+    h < 5  ? 'Up early.' :
+    h < 12 ? 'Good morning.' :
+    h < 17 ? 'Good afternoon.' :
+    h < 22 ? 'Good evening.' : 'Late shift.';
+  const el = $('#ovGreeting');
+  if (el) el.textContent = greet;
+  const ctx = $('#ovContext');
+  if (ctx) {
+    const today = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+    ctx.textContent = today + ' · the one screen you read every morning.';
+  }
+}
+
+function paintInsight(insight, pulse, daysToPaid) {
+  if (!insight) return;
+  const text = $('#insightText');
+  const action = $('#insightAction');
+  if (text) text.textContent = insight.text;
+  if (action) {
+    action.textContent = insight.actionLabel || 'Open';
+    action.dataset.targetTab = insight.actionTab || 'leads';
+    action.onclick = () => {
+      if (typeof setTab === 'function') setTab(insight.actionTab || 'leads');
+    };
+  }
+}
+
+function paintPulse(pulse) {
+  if (!pulse) return;
+  const v = $('#pulseValue');
+  if (v) v.textContent = String(pulse.score);
+  const tk = $('#pulseTakeaway');
+  if (tk) {
+    if (pulse.score >= 70) {
+      tk.textContent = 'Strong week. The pipeline is hitting most of its weekly targets.';
+    } else if (pulse.score >= 40) {
+      tk.textContent = 'Steady pipeline. Room to push on the lowest-scoring component below.';
+    } else {
+      tk.textContent = 'Pipeline is light this week. Inflow, bookings, or payments are below target.';
+    }
+  }
+  const lEl = $('#pulseLeads');
+  const bEl = $('#pulseBookings');
+  const pEl = $('#pulsePayments');
+  if (lEl) lEl.textContent = (pulse.leads || 0) + ' / 40';
+  if (bEl) bEl.textContent = (pulse.bookings || 0) + ' / 35';
+  if (pEl) pEl.textContent = (pulse.payments || 0) + ' / 25';
+
+  const hist = (pulse.history || []).slice(-14);
+  if (!hist.length) return;
+  const W = 200, H = 36, pad = 1;
+  const max = 100;
+  const stepX = hist.length > 1 ? (W - pad * 2) / (hist.length - 1) : 0;
+  const pts = hist.map((y, i) => {
+    const x = pad + i * stepX;
+    const yy = pad + (1 - y / max) * (H - pad * 2);
+    return [x, yy];
+  });
+  const line = pts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+  const fill = line + ' L' + (W - pad).toFixed(1) + ',' + (H - pad).toFixed(1) +
+               ' L' + pad.toFixed(1) + ',' + (H - pad).toFixed(1) + ' Z';
+  const lineEl = $('#pulseSparkLine');
+  const fillEl = $('#pulseSparkFill');
+  if (lineEl) lineEl.setAttribute('d', line);
+  if (fillEl) fillEl.setAttribute('d', fill);
+}
+
+function paintDaysToPaid(daysToPaid) {
+  const v = $('#d2pValue');
+  const tk = $('#d2pTakeaway');
+  if (daysToPaid === null || daysToPaid === undefined) {
+    if (v) v.textContent = '—';
+    if (tk) tk.textContent = 'No paid conversions in the last 60 days yet. Once a lead converts, the average lands here.';
+    return;
+  }
+  if (v) v.textContent = String(daysToPaid);
+  if (tk) {
+    if (daysToPaid <= 5)      tk.textContent = 'Fast funnel. Leads are converting in under a week on average.';
+    else if (daysToPaid <= 14) tk.textContent = 'Healthy velocity. Most leads close inside two weeks.';
+    else                       tk.textContent = 'Funnel is slow. Worth checking where leads sit longest before paying.';
+  }
+}
+
+function paintEquityCurve(curve, currency) {
+  const lineEl  = $('#equityLine');
+  const fillEl  = $('#equityFill');
+  const emptyEl = $('#equityEmpty');
+  const meta    = $('#ecMeta');
+  const tk      = $('#ecTakeaway');
+  if (!lineEl) return;
+
+  if (!curve || !curve.length) {
+    if (emptyEl) emptyEl.classList.remove('hidden');
+    if (lineEl) lineEl.setAttribute('d', '');
+    if (fillEl) fillEl.setAttribute('d', '');
+    if (tk) tk.textContent = 'No paid customers yet. Your first payment will draw the first segment.';
+    return;
+  }
+  if (emptyEl) emptyEl.classList.add('hidden');
+
+  const totalPence = curve[curve.length - 1].v;
+  const ccy = (currency || 'gbp').toUpperCase();
+  if (meta) meta.textContent = curve.length + ' payment' + (curve.length !== 1 ? 's' : '') + ' · ' + ccy;
+  if (tk) {
+    tk.textContent = 'Cumulative gross paid: ' + fmt.money(totalPence, currency || 'gbp') +
+      ' across ' + curve.length + ' payment' + (curve.length !== 1 ? 's' : '') + '.';
+  }
+
+  // Map points into the SVG's 800×220 canvas (matches viewBox)
+  const W = 800, H = 220, padX = 8, padY = 14;
+  const tMin = curve[0].t;
+  const tMax = curve[curve.length - 1].t;
+  const tSpan = Math.max(1, tMax - tMin);
+  const vMax = curve[curve.length - 1].v;
+  const pts = curve.map(p => {
+    const x = padX + ((p.t - tMin) / tSpan) * (W - padX * 2);
+    const y = padY + (1 - (p.v / Math.max(1, vMax))) * (H - padY * 2);
+    return [x, y];
+  });
+  // Step path so each new payment shows as a vertical riser then flat — reads as
+  // "discrete events" rather than continuous interpolation
+  let dLine = 'M' + pts[0][0].toFixed(1) + ',' + (H - padY).toFixed(1);
+  dLine += ' L' + pts[0][0].toFixed(1) + ',' + pts[0][1].toFixed(1);
+  for (let i = 1; i < pts.length; i++) {
+    dLine += ' L' + pts[i][0].toFixed(1) + ',' + pts[i - 1][1].toFixed(1);
+    dLine += ' L' + pts[i][0].toFixed(1) + ',' + pts[i][1].toFixed(1);
+  }
+  // Carry the last value forward to the right edge so the line doesn't end mid-canvas
+  dLine += ' L' + (W - padX).toFixed(1) + ',' + pts[pts.length - 1][1].toFixed(1);
+  const dFill = dLine + ' L' + (W - padX).toFixed(1) + ',' + (H - padY).toFixed(1) +
+                ' L' + padX.toFixed(1) + ',' + (H - padY).toFixed(1) + ' Z';
+
+  lineEl.setAttribute('d', dLine);
+  if (fillEl) fillEl.setAttribute('d', dFill);
+}
+
+function paintTodaysThree(tasks) {
+  const list = $('#todoList');
+  if (!list) return;
+  if (!tasks || !tasks.length) {
+    setHTML(list, '<li class="todo-empty">No items detected.</li>');
+    return;
+  }
+  setHTML(list, tasks.map((t, i) => (
+    '<li data-target-tab="' + fmt.esc(t.tab || 'leads') + '">' +
+      '<span class="todo-num">' + String(i + 1).padStart(2, '0') + '</span>' +
+      '<div class="todo-text">' +
+        '<div class="todo-action">' + fmt.esc(t.action) + '</div>' +
+        '<div class="todo-evidence">' + fmt.esc(t.evidence) + '</div>' +
+      '</div>' +
+      '<svg class="todo-arrow" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">' +
+        '<path d="M5 3 L11 8 L5 13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>' +
+      '</svg>' +
+    '</li>'
+  )).join(''));
+  list.querySelectorAll('li[data-target-tab]').forEach(li => {
+    li.addEventListener('click', () => {
+      const t = li.getAttribute('data-target-tab');
+      if (t && typeof setTab === 'function') setTab(t);
+    });
+  });
 }
 
 // safe innerHTML wrapper — values must already be escaped
