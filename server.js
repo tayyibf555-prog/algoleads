@@ -490,6 +490,9 @@ app.get('/api/members', requireAuth, async (req, res) => {
       params.push(`%${search}%`, `%${search}%`);
     }
     // password_hash is intentionally excluded.
+    // bd.* fields come from the member_broker_details table (the
+    // member-portal-owned table) via LEFT JOIN. Members without
+    // submitted broker details have NULLs for these fields.
     const rows = await all(
       `SELECT
          m.id,
@@ -501,8 +504,16 @@ app.get('/api/members', requireAuth, async (req, res) => {
          (SELECT COUNT(*) FROM payments WHERE payments.email = m.email) AS payments_count,
          (SELECT COALESCE(SUM(amount_cents), 0) FROM payments WHERE payments.email = m.email) AS paid_pence,
          (SELECT COUNT(*) FROM bookings WHERE bookings.email = m.email) AS bookings_count,
-         (SELECT MAX(scheduled_at) FROM bookings WHERE bookings.email = m.email) AS next_booking_at
+         (SELECT MAX(scheduled_at) FROM bookings WHERE bookings.email = m.email) AS next_booking_at,
+         bd.broker_name         AS broker_name,
+         bd.account_number      AS broker_account_number,
+         bd.account_type        AS broker_account_type,
+         bd.account_size        AS broker_account_size,
+         bd.notes               AS broker_notes,
+         bd.submitted_at        AS broker_submitted_at,
+         bd.updated_at          AS broker_updated_at
        FROM members m
+       LEFT JOIN member_broker_details bd ON bd.member_id = m.id
        ${where}
        ORDER BY m.created_at DESC
        LIMIT 500`,

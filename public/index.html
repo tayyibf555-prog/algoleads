@@ -316,6 +316,7 @@
               <th>Name</th>
               <th>Email</th>
               <th class="r">Status</th>
+              <th>Broker</th>
               <th class="r">Paid</th>
               <th class="r">Bookings</th>
               <th class="r">Last login</th>
@@ -323,11 +324,26 @@
             </tr>
           </thead>
           <tbody id="membersBody">
-            <tr><td colspan="7" class="muted center" data-label="">Loading…</td></tr>
+            <tr><td colspan="8" class="muted center" data-label="">Loading…</td></tr>
           </tbody>
         </table>
       </div>
     </section>
+
+    <!-- =============== Member broker-details drawer =============== -->
+    <aside class="drawer" id="memberDrawer" aria-hidden="true">
+      <div class="drawer-bg" data-close-member-drawer></div>
+      <div class="drawer-panel" role="dialog" aria-labelledby="memberDrawerTitle">
+        <header class="drawer-head">
+          <div>
+            <span class="label">Member · Broker details</span>
+            <h2 id="memberDrawerTitle">—</h2>
+          </div>
+          <button class="icon-btn" data-close-member-drawer aria-label="Close">×</button>
+        </header>
+        <div class="drawer-body" id="memberDrawerBody"></div>
+      </div>
+    </aside>
 
     <!-- =============== Announcements =============== -->
     <section class="panel" id="panel-announcements">

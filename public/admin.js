@@ -605,10 +605,14 @@ async function loadMembers(search) {
     _memberSearchWired = true;
   }
   const body = $('#membersBody');
-  setHTML(body, '<tr><td colspan="7" class="muted center" data-label="">Loading…</td></tr>');
+  setHTML(body, '<tr><td colspan="8" class="muted center" data-label="">Loading…</td></tr>');
   try {
     const url = '/api/members' + (search ? ('?search=' + encodeURIComponent(search)) : '');
     const rows = await api(url);
+
+    // Cache rows by id so the broker drawer can pull from this list
+    // without a second round-trip.
+    _memberRowsById = new Map(rows.map(r => [String(r.id), r]));
 
     // Mini-stats above the table
     const total = rows.length;
@@ -622,7 +626,7 @@ async function loadMembers(search) {
     $('#memStatActive7 .v').textContent = String(active7);
 
     if (!rows.length) {
-      setHTML(body, '<tr><td colspan="7" class="muted center" data-label="">' + (search ? 'No matches.' : 'No members yet. The first signup at algomembers.vercel.app will appear here.') + '</td></tr>');
+      setHTML(body, '<tr><td colspan="8" class="muted center" data-label="">' + (search ? 'No matches.' : 'No members yet. The first signup at algomembers.vercel.app will appear here.') + '</td></tr>');
       return;
     }
     setHTML(body, rows.map(r => {
@@ -642,11 +646,28 @@ async function loadMembers(search) {
       const lastLogin = r.last_login_at
         ? fmt.esc(fmt.ago(r.last_login_at))
         : '<span class="muted">never</span>';
+
+      // Broker cell — clickable when a row exists in member_broker_details
+      let brokerCell;
+      if (r.broker_name) {
+        const typeTag = r.broker_account_type
+          ? ' <span class="broker-type-tag">' + fmt.esc(r.broker_account_type === 'prop' ? 'Prop' : r.broker_account_type === 'live' ? 'Live' : r.broker_account_type) + '</span>'
+          : '';
+        brokerCell =
+          '<button class="broker-pill" data-broker-member="' + fmt.esc(r.id) + '" type="button" title="View broker details">' +
+            '<span class="broker-name">' + fmt.esc(r.broker_name) + '</span>' +
+            typeTag +
+          '</button>';
+      } else {
+        brokerCell = '<span class="muted broker-empty">Not submitted</span>';
+      }
+
       return (
         '<tr>' +
           '<td data-label="Name">' + (fmt.esc(r.name) || '<span class="muted">—</span>') + '</td>' +
           '<td data-label="Email" class="mono">' + fmt.esc(r.email) + '</td>' +
           '<td data-label="Status" class="r">' + linkBadge + '</td>' +
+          '<td data-label="Broker">' + brokerCell + '</td>' +
           '<td data-label="Paid" class="r mono">' + paidStr + '</td>' +
           '<td data-label="Bookings" class="r mono">' + bookingsStr + '</td>' +
           '<td data-label="Last login" class="r mono muted">' + lastLogin + '</td>' +
@@ -654,10 +675,62 @@ async function loadMembers(search) {
         '</tr>'
       );
     }).join(''));
+
+    // Wire broker-pill clicks → open drawer
+    $$('button[data-broker-member]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-broker-member');
+        const member = _memberRowsById.get(id);
+        if (member) openMemberDrawer(member);
+      });
+    });
   } catch (err) {
-    setHTML(body, '<tr><td colspan="7" class="muted center" data-label="">Error: ' + fmt.esc(err.message) + '</td></tr>');
+    setHTML(body, '<tr><td colspan="8" class="muted center" data-label="">Error: ' + fmt.esc(err.message) + '</td></tr>');
   }
 }
+
+let _memberRowsById = new Map();
+const _memberDrawer = $('#memberDrawer');
+function openMemberDrawer(member) {
+  if (!_memberDrawer) return;
+  $('#memberDrawerTitle').textContent = member.name || member.email || 'Member';
+  const submittedAgo = member.broker_submitted_at
+    ? fmt.ago(member.broker_submitted_at)
+    : null;
+  const lines = [
+    ['Broker', member.broker_name || '—'],
+    ['Account number', member.broker_account_number || '—'],
+    ['Account type', member.broker_account_type === 'prop' ? 'Prop firm account'
+      : member.broker_account_type === 'live' ? 'Live cash account' : (member.broker_account_type || '—')],
+    ['Account size', member.broker_account_size || '—'],
+    ['Member email', member.email || '—'],
+    ['Submitted', submittedAgo || '—'],
+  ];
+  const html =
+    lines.map(([k, v]) => (
+      '<div class="kv-row">' +
+        '<span class="kv-k">' + fmt.esc(k) + '</span>' +
+        '<span class="kv-v mono">' + fmt.esc(String(v)) + '</span>' +
+      '</div>'
+    )).join('') +
+    (member.broker_notes
+      ? '<div class="kv-row kv-notes"><span class="kv-k">Notes</span><pre class="kv-pre">' + fmt.esc(member.broker_notes) + '</pre></div>'
+      : '');
+  setHTML($('#memberDrawerBody'), html);
+  _memberDrawer.setAttribute('aria-hidden', 'false');
+  _memberDrawer.classList.add('open');
+}
+function closeMemberDrawer() {
+  if (!_memberDrawer) return;
+  _memberDrawer.setAttribute('aria-hidden', 'true');
+  _memberDrawer.classList.remove('open');
+}
+$$('[data-close-member-drawer]').forEach(el => el.addEventListener('click', closeMemberDrawer));
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && _memberDrawer && _memberDrawer.classList.contains('open')) {
+    closeMemberDrawer();
+  }
+});
 
 // ──────────────────────────────────────────────────────────────
 // ANNOUNCEMENTS — admin composes; the SAME table is read by the
